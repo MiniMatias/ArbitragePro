@@ -142,48 +142,56 @@ class MarketStreamer:
         self.running = False
 
     def _run_loop(self):
-        """Bucle continuo de avance de eventos y aprendizaje en tiempo real."""
+        """Bucle continuo de avance de eventos y aprendizaje en tiempo real con tolerancia a fallos."""
         while self.running:
-            time.sleep(SIMULATION_TICK_SECONDS)
-            now = time.time()
-            with self._lock:
-                for event_id, match in list(self.events.items()):
-                    if match["status"] == "LIVE":
-                        match["minute"] += 1
+            try:
+                time.sleep(SIMULATION_TICK_SECONDS)
+                now = time.time()
+                with self._lock:
+                    for event_id, match in list(self.events.items()):
+                        if match["status"] == "LIVE":
+                            match["minute"] += 1
 
-                        # Probabilidad estocástica de gol por minuto (~2.8% por minuto)
-                        if random.random() < 0.035 and match["minute"] < 90:
-                            scoring_team = "home" if random.random() < 0.55 else "away"
-                            match["score"][scoring_team] += 1
-                            # Ajuste dinámico de probabilidades tras el gol
-                            if scoring_team == "home":
-                                match["base_prob"]["1"] = min(0.92, match["base_prob"]["1"] + 0.15)
-                                match["base_prob"]["X"] = max(0.05, match["base_prob"]["X"] - 0.08)
-                                match["base_prob"]["2"] = max(0.03, match["base_prob"]["2"] - 0.07)
+                            # Probabilidad estocástica de gol por minuto (~2.8% por minuto)
+                            if random.random() < 0.035 and match["minute"] < 90:
+                                scoring_team = "home" if random.random() < 0.55 else "away"
+                                match["score"][scoring_team] += 1
+                                # Ajuste dinámico de probabilidades tras el gol
+                                if scoring_team == "home":
+                                    match["base_prob"]["1"] = min(0.92, match["base_prob"]["1"] + 0.15)
+                                    match["base_prob"]["X"] = max(0.05, match["base_prob"]["X"] - 0.08)
+                                    match["base_prob"]["2"] = max(0.03, match["base_prob"]["2"] - 0.07)
+                                else:
+                                    match["base_prob"]["2"] = min(0.92, match["base_prob"]["2"] + 0.15)
+                                    match["base_prob"]["X"] = max(0.05, match["base_prob"]["X"] - 0.08)
+                                    match["base_prob"]["1"] = max(0.03, match["base_prob"]["1"] - 0.07)
+
+                            # Si el partido llega al minuto 90, finalizar y disparar aprendizaje continuo
+                            if match["minute"] >= 90:
+                                match["status"] = "FINISHED"
+                                try:
+                                    # Ejecutar aprendizaje bayesiano post-partido
+                                    r_h = BayesianContinuousLearner.get_team_rating(match["home_team"])
+                                    r_a = BayesianContinuousLearner.get_team_rating(match["away_team"])
+                                    probs = DixonColesEngine.compute_match_probabilities(
+                                        r_h["attack"], r_h["defense"], r_a["attack"], r_a["defense"]
+                                    )
+                                    BayesianContinuousLearner.settle_match_and_learn(
+                                        event_id=match["event_id"],
+                                        home_team=match["home_team"],
+                                        away_team=match["away_team"],
+                                        home_score=match["score"]["home"],
+                                        away_score=match["score"]["away"],
+                                        predicted_probs=probs
+                                    )
+                                except Exception as settle_err:
+                                    # Evitar propagación en el hilo secundario
+                                    pass
                             else:
-                                match["base_prob"]["2"] = min(0.92, match["base_prob"]["2"] + 0.15)
-                                match["base_prob"]["X"] = max(0.05, match["base_prob"]["X"] - 0.08)
-                                match["base_prob"]["1"] = max(0.03, match["base_prob"]["1"] - 0.07)
-
-                        # Si el partido llega al minuto 90, finalizar y disparar aprendizaje continuo
-                        if match["minute"] >= 90:
-                            match["status"] = "FINISHED"
-                            # Ejecutar aprendizaje bayesiano post-partido
-                            r_h = BayesianContinuousLearner.get_team_rating(match["home_team"])
-                            r_a = BayesianContinuousLearner.get_team_rating(match["away_team"])
-                            probs = DixonColesEngine.compute_match_probabilities(
-                                r_h["attack"], r_h["defense"], r_a["attack"], r_a["defense"]
-                            )
-                            BayesianContinuousLearner.settle_match_and_learn(
-                                event_id=match["event_id"],
-                                home_team=match["home_team"],
-                                away_team=match["away_team"],
-                                home_score=match["score"]["home"],
-                                away_score=match["score"]["away"],
-                                predicted_probs=probs
-                            )
-                        else:
-                            self._update_event_odds(match, now)
+                                self._update_event_odds(match, now)
+            except Exception:
+                # Recuperación automática ante excepciones transitorias
+                time.sleep(1.0)
 
     def get_live_events(self) -> List[Dict[str, Any]]:
         """Retorna lista de eventos en vivo."""

@@ -10,15 +10,28 @@ class ArbitrageEngine:
     """Motor determinista de arbitraje deportivo."""
 
     @staticmethod
+    def _is_valid_odd(odd: Any) -> bool:
+        """Verifica que una cuota sea un número real estrictamente válido (> 1.001 y finito)."""
+        if not isinstance(odd, (int, float)):
+            return False
+        if math.isnan(odd) or math.isinf(odd):
+            return False
+        return odd > 1.001
+
+    @staticmethod
     def calculate_margin(odds: List[float]) -> Tuple[float, float, bool]:
         """
         Calcula el margen de mercado L = sum(1 / odd).
         Retorna (L, roi_percent, is_surebet)
+        Blindado contra NaN, infinitos, cuotas no finitas y división por cero.
         """
-        if not odds or any(o <= 1.0 for o in odds):
+        if not odds or len(odds) < 2 or not all(ArbitrageEngine._is_valid_odd(o) for o in odds):
             return 1.0, 0.0, False
         
-        sum_inverse = sum(1.0 / o for o in odds)
+        sum_inverse = sum(1.0 / float(o) for o in odds)
+        if math.isnan(sum_inverse) or math.isinf(sum_inverse) or sum_inverse <= 0.0:
+            return 1.0, 0.0, False
+
         is_surebet = sum_inverse < 1.0
         
         if is_surebet:
@@ -38,11 +51,28 @@ class ArbitrageEngine:
         Calcula los stakes por cuota.
         Si anti_ban es True, redondea a enteros distribuyendo la diferencia para evitar sospechas.
         """
+        if (not isinstance(total_investment, (int, float)) or 
+            math.isnan(total_investment) or 
+            math.isinf(total_investment) or 
+            total_investment <= 0.0):
+            total_investment = 100.0
+
         sum_inverse, roi_percent, is_surebet = ArbitrageEngine.calculate_margin(odds)
-        n = len(odds)
-        
+        if sum_inverse <= 0.0 or not odds or len(odds) < 2:
+            return {
+                "sum_inverse_l": 1.0,
+                "roi_percent": 0.0,
+                "is_surebet": False,
+                "anti_ban_active": anti_ban,
+                "total_investment": 0.0,
+                "stakes": [],
+                "raw_stakes": [],
+                "scenarios": [],
+                "min_guaranteed_profit": 0.0
+            }
+
         # 1. Stakes teóricos continuos
-        raw_stakes = [total_investment / (sum_inverse * o) for o in odds]
+        raw_stakes = [total_investment / (sum_inverse * float(o)) for o in odds]
         
         final_stakes = []
         if anti_ban:

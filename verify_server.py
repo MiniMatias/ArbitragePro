@@ -53,11 +53,25 @@ def test_all_endpoints():
     with urllib.request.urlopen(req_post) as post_res:
         post_data = json.loads(post_res.read().decode("utf-8"))
         assert "settlement_result" in post_data
-        print(f"[OK] POST /api/settle     -> Status: {post_res.status} | Res: {post_data['settlement_result']['final_score']} (BS: {post_data['settlement_result']['brier_score']})")
+        # Verificar OWASP Security Headers
+        assert post_res.headers.get("X-Content-Type-Options") == "nosniff"
+        assert post_res.headers.get("X-Frame-Options") == "DENY"
+        assert "Content-Security-Policy" in post_res.headers
+        print(f"[OK] POST /api/settle     -> Status: {post_res.status} | Res: {post_data['settlement_result']['final_score']} (BS: {post_data['settlement_result']['brier_score']}) | OWASP Headers OK")
+        success_count += 1
+
+    # Probar rechazo de URI excesiva (>2048 chars -> 414 URI Too Long)
+    long_path = "/api/status?" + "x=" * 2100
+    try:
+        urllib.request.urlopen(f"{base_url}{long_path}")
+        assert False, "Debe rechazar URIs que superen los 2048 caracteres"
+    except urllib.error.HTTPError as err:
+        assert err.code == 414, f"Esperaba código 414 pero recibió {err.code}"
+        print(f"[OK] 414 URI Too Long     -> Status: {err.code} | Rechazado correctamente")
         success_count += 1
 
     server.shutdown()
-    print(f"\nTODOS LOS ENDPOINTS VALIDADOS ({success_count}/{len(endpoints)+1}) EXITOSAMENTE.")
+    print(f"\nTODOS LOS ENDPOINTS Y CONTROLES DE SEGURIDAD VALIDADOS ({success_count}/{len(endpoints)+2}) EXITOSAMENTE.")
 
 if __name__ == "__main__":
     test_all_endpoints()

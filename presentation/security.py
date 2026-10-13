@@ -8,40 +8,57 @@ import time
 import re
 from typing import Dict, Tuple, Optional, Any
 
+import hashlib
+import secrets
+
 # Constantes de Seguridad
 MAX_PAYLOAD_BYTES = 65536  # 64 KB máximo por solicitud para prevenir ataques de denegación de servicio (DoS)
+MAX_URI_LENGTH = 2048  # Límite RFC 7230 para prevención de desbordamiento de búfer y ataques ReDoS
 RATE_LIMIT_MAX_REQUESTS = 120  # Máximo de solicitudes por ventana
 RATE_LIMIT_WINDOW_SECONDS = 60.0  # Ventana de 1 minuto
 
 class RateLimiter:
-    """Limitador de tasa en memoria por IP del cliente (Sliding Window)."""
+    """
+    Limitador de tasa en memoria con pseudonimización criptográfica (Sliding Window).
+    Cumple con el principio de minimización de datos (GDPR Art. 5.1.c / LOPDP Art. 10):
+    Las direcciones IP reales jamás se conservan en texto plano en memoria ni en logs.
+    """
+    _salt: str = secrets.token_hex(16)
     _requests: Dict[str, list] = {}
+
+    @classmethod
+    def _hash_ip(cls, client_ip: str) -> str:
+        """Genera un identificador pseudonimizado irreversible con sal volátil."""
+        raw = f"{cls._salt}:{client_ip}".encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()[:32]
 
     @classmethod
     def is_allowed(cls, client_ip: str) -> bool:
         now = time.time()
         cls._cleanup(now)
 
-        if client_ip not in cls._requests:
-            cls._requests[client_ip] = []
+        ip_key = cls._hash_ip(client_ip)
+
+        if ip_key not in cls._requests:
+            cls._requests[ip_key] = []
 
         # Filtrar solo solicitudes dentro de la ventana actual
-        cls._requests[client_ip] = [t for t in cls._requests[client_ip] if (now - t) < RATE_LIMIT_WINDOW_SECONDS]
+        cls._requests[ip_key] = [t for t in cls._requests[ip_key] if (now - t) < RATE_LIMIT_WINDOW_SECONDS]
 
-        if len(cls._requests[client_ip]) >= RATE_LIMIT_MAX_REQUESTS:
+        if len(cls._requests[ip_key]) >= RATE_LIMIT_MAX_REQUESTS:
             return False
 
-        cls._requests[client_ip].append(now)
+        cls._requests[ip_key].append(now)
         return True
 
     @classmethod
     def _cleanup(cls, now: float):
         """Limpia registros antiguos para evitar fugas de memoria."""
         if len(cls._requests) > 1000:
-            for ip in list(cls._requests.keys()):
-                cls._requests[ip] = [t for t in cls._requests[ip] if (now - t) < RATE_LIMIT_WINDOW_SECONDS]
-                if not cls._requests[ip]:
-                    del cls._requests[ip]
+            for k in list(cls._requests.keys()):
+                cls._requests[k] = [t for t in cls._requests[k] if (now - t) < RATE_LIMIT_WINDOW_SECONDS]
+                if not cls._requests[k]:
+                    del cls._requests[k]
 
 
 class SecurityGuard:

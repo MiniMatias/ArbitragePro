@@ -82,6 +82,11 @@ def init_db():
     )
     """)
 
+    # 5. Índices de Rendimiento (DBA Optimization: B-Tree Indexes)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_settled_at ON settled_matches(settled_at DESC);")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_team_quarantine ON team_ratings(is_quarantined);")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_signals_created ON signals_history(created_at DESC);")
+
     conn.commit()
     conn.close()
 

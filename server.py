@@ -16,8 +16,7 @@ from market_streamer import MarketStreamer
 from alerts.telegram_bot import AlertDispatcher
 from config import PORT, HOST, INITIAL_BANKROLL, FRACTIONAL_KELLY
 
-# Importación de la Capa de Presentación y Seguridad
-from presentation.security import SecurityGuard, RateLimiter, MAX_PAYLOAD_BYTES
+from presentation.security import SecurityGuard, RateLimiter, MAX_PAYLOAD_BYTES, MAX_URI_LENGTH
 from presentation.controllers import MarketController, CalibrationController, BacktestController
 
 # 1. Inicialización de Capas de Infraestructura
@@ -75,7 +74,12 @@ class RobustArbitrageProHandler(http.server.SimpleHTTPRequestHandler):
             self._send_error_json(500, "Error interno al leer recurso estático.")
 
     def do_GET(self):
-        # 1. Protección de Rate Limiting por IP
+        # 0. Mitigación de Desbordamiento de Buffer de URI (RFC 7230)
+        if len(self.path) > MAX_URI_LENGTH:
+            self._send_error_json(414, "URI Too Long: La URL excede el límite permitido.")
+            return
+
+        # 1. Protección de Rate Limiting por IP (Pseudonimizada)
         client_ip = self._get_client_ip()
         if not RateLimiter.is_allowed(client_ip):
             self._send_error_json(429, "Límite de solicitudes excedido. Intente nuevamente en 60 segundos.")
@@ -141,7 +145,12 @@ class RobustArbitrageProHandler(http.server.SimpleHTTPRequestHandler):
             self._send_error_json(500, "Error interno del servidor.")
 
     def do_POST(self):
-        # 1. Rate Limiting
+        # 0. Mitigación de Desbordamiento de Buffer de URI (RFC 7230)
+        if len(self.path) > MAX_URI_LENGTH:
+            self._send_error_json(414, "URI Too Long: La URL excede el límite permitido.")
+            return
+
+        # 1. Rate Limiting por IP (Pseudonimizada)
         client_ip = self._get_client_ip()
         if not RateLimiter.is_allowed(client_ip):
             self._send_error_json(429, "Límite de solicitudes excedido.")

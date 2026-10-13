@@ -356,11 +356,11 @@ El código ha sido refactorizado en una **Arquitectura Limpia de 4 Capas (Clean 
 6. **Inyecciones SQL Imposibles:** Todo el acceso a la base de datos SQLite se realiza a través de consultas con tuplas de parámetros (`?`).
 
 ### 10.3 Comandos de Ejecución para el Agente Receptor
-1. **Ejecutar Pruebas Unitarias, Cuantitativas y de Seguridad (9/9):**
+1. **Ejecutar Pruebas Unitarias, Cuantitativas y de Seguridad (12/12):**
    ```bash
    python test_engine.py
    ```
-2. **Validar Endpoints del Servidor con Seguridad Activa (10/10):**
+2. **Validar Endpoints del Servidor con Seguridad Activa (11/11):**
    ```bash
    python verify_server.py
    ```
@@ -373,4 +373,44 @@ El código ha sido refactorizado en una **Arquitectura Limpia de 4 Capas (Clean 
    python server.py
    ```
    Abrir en el navegador: `http://127.0.0.1:8080`
+
+---
+
+## 11. AUDITORÍA CRÍTICA DE CUMPLIMIENTO LEGAL, PROTECCIÓN DE DATOS Y TÉRMINOS DE SERVICIO (TOS)
+
+> [!IMPORTANT]
+> **Rigor y Autocrítica sin Concesiones:**
+> El arbitraje deportivo matemático es legal en la mayoría de jurisdicciones occidentales (comparación de precios de mercado libre). Sin embargo, la operación informática interactúa con fronteras legales y regulatorias críticas que este sistema cumple con rigor absoluto.
+
+### 11.1 Leyes Informáticas y Ciberdelincuencia (Convenio de Budapest, COIP Ecuador Art. 229-234, CFAA)
+1. **Acceso No Consentido y Denegación de Servicio (DoS/DDoS):**
+   - El sistema **NO** realiza web scraping invasivo ni evasión de firewalls perimetrales (Cloudflare Turnstile, Akamai Bot Manager, Datadome).
+   - La ingesta de datos se realiza a través de APIs documentadas autorizadas (`The Odds API`) o feeds estocásticos simulados en memoria.
+   - En el servidor propio, se implementa rate-limiting estricto (120 req/min), límite de longitud de URI (2048 caracteres, RFC 7230) y límite de payload (64 KB) para garantizar disponibilidad continua.
+2. **Integridad de Sistemas y Cero Inyección de Código:**
+   - La persistencia utiliza consultas SQL 100% parametrizadas (SQLite3), impidiendo cualquier vector de inyección SQL.
+   - La manipulación de rutas en archivos estáticos está protegida mediante verificación de prefijo canónico absoluto (`validate_safe_path`), neutralizando cualquier intento de Path Traversal.
+
+### 11.2 Protección de Datos Personales (LOPDP Ecuador / RGPD/GDPR Unión Europea)
+1. **Tratamiento y Minimización de Direcciones IP (Principio de Pseudonimización - Art. 5.1.c y 25/32 GDPR):**
+   - La jurisprudencia internacional (Sentencia TJUE Caso Breyer C-582/14) y el Art. 4 de la LOPDP de Ecuador clasifican a las direcciones IP dinámicas como datos personales identificables indirectos.
+   - En `ArbitragePro NextGen`, el `RateLimiter` **no almacena direcciones IP en texto plano ni en base de datos ni en memoria RAM persistente**.
+   - Cada IP entrante es convertida inmediatamente en un hash irreversible SHA-256 de 32 caracteres con sal criptográfica volátil rotativa (`secrets.token_hex(16)`).
+2. **Cero Rastreo No Autorizado ni Fuga de Datos (PII):**
+   - El sistema no recolecta nombres, correos, documentos de identidad ni credenciales bancarias.
+   - Los registros de auditoría y métricas de calibración registran únicamente marcadores, residuales y cuotas deportivas numéricas.
+
+### 11.3 Cumplimiento con los Términos de Servicio de Casas de Apuestas (ToS Compliance)
+1. **Naturaleza Estricta como Herramienta de Soporte a la Decisión (Decision-Support Software):**
+   - Los términos y condiciones de las casas de apuestas (ej. Bet365 Sección B.4, 1xBet Sección 2, Ecuabet) prohíben explícitamente:
+     - El uso de bots de software que ejecuten apuestas de forma automatizada mediante automatización de navegador (RPA/Puppeteer/Selenium) o ingeniería inversa de APIs privadas.
+     - La colusión o apuestas sindicadas organizadas (*syndicate betting*).
+     - La explotación deliberada de errores tipográficos o técnicos manifiestos (*Palpable Errors* o *Palps*).
+   - **Garantía del Sistema:** `ArbitragePro NextGen` **NUNCA ejecuta apuestas automáticamente**. Toda colocación de boletos es 100% manual por decisión soberana del operador humano.
+2. **Filtro Preventivo Anti-Palpable Error:**
+   - Si una casa publica una cuota invertida por error humano (ej. 15.00 en lugar de 1.50), la casa invocará su cláusula de error manifiesto y anulará la apuesta unilateralmente a cuota 1.00, rompiendo la cobertura de la Surebet y generando una pérdida segura del 100% en la otra pata (*leg hanging*).
+   - El sistema rechaza preventivamente cualquier cuota con ROI > 15% o divergencia > 18% contra el benchmark mundial (Pinnacle).
+3. **Claridad sobre el "Anti-Ban" (Staking Discreto Entero):**
+   - Es técnicamente falso y deshonesto prometer "inmunidad total" contra limitaciones de casas. Las casas recreacionales limitan a apostadores consistentemente ganadores que toman Closing Line Value (CLV).
+   - La función del sistema no busca "engañar a la casa", sino **eliminar patrones obvios de cálculo por algoritmos automáticos** (redondeando stakes a números enteros como $45 o $55 en vez de $45.37), reduciendo las alertas tempranas de los filtros antifraude de la casa.
 

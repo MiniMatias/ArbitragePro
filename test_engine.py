@@ -170,5 +170,61 @@ class TestArbitrageProNextGen(unittest.TestCase):
         for _ in range(5):
             self.assertTrue(RateLimiter.is_allowed(test_ip))
 
+    def test_10_floating_point_and_nan_inf_protection(self):
+        """Verifica blindaje matemático estricto contra NaN, Inf, divisiones por cero y cuotas no finitas."""
+        from domain.arbitrage import ArbitrageDomain
+        import math
+
+        # Casos aberrantes que antes producían ZeroDivisionError o falsos positivos
+        edge_cases = [
+            [float('nan'), 2.0],
+            [float('inf'), 2.0],
+            [float('-inf'), 2.0],
+            [float('inf'), float('inf')],
+            [0.0, 2.0],
+            [-1.5, 2.0],
+            [1.0, 2.0],
+            [1.0001, 2.0],
+            []
+        ]
+        for odds in edge_cases:
+            sum_l, roi, is_surebet = ArbitrageDomain.calculate_margin(odds)
+            self.assertFalse(is_surebet, f"Cuotas aberrantes {odds} no deben generar Surebet")
+            self.assertFalse(math.isnan(sum_l))
+            self.assertFalse(math.isinf(sum_l))
+
+        # Cálculo de stakes con total_investment inválido
+        res_nan = ArbitrageDomain.calculate_stakes([2.0, 2.1], float('nan'))
+        self.assertGreater(res_nan["total_investment"], 0.0)
+
+        res_inf = ArbitrageDomain.calculate_stakes([2.0, 2.1], float('inf'))
+        self.assertGreater(res_inf["total_investment"], 0.0)
+
+    def test_11_privacy_ip_pseudonymization(self):
+        """Verifica cumplimiento de LOPDP/GDPR: IPs en texto claro nunca son almacenadas."""
+        from presentation.security import RateLimiter
+        raw_ip = "200.10.150.25"
+        RateLimiter.is_allowed(raw_ip)
+
+        # La IP en texto claro jamás debe estar en las llaves del diccionario en memoria
+        self.assertNotIn(raw_ip, RateLimiter._requests, "La IP en texto plano no debe existir en memoria")
+        
+        # Verificar que el hash pseudonimizado sí existe
+        hashed_key = RateLimiter._hash_ip(raw_ip)
+        self.assertIn(hashed_key, RateLimiter._requests)
+        self.assertEqual(len(hashed_key), 32)
+
+    def test_12_database_indexes_exist(self):
+        """Verifica que los índices de rendimiento B-Tree requeridos existan en la base de datos."""
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT name FROM sqlite_master WHERE type = 'index'")
+        indices = [row["name"] for row in c.fetchall()]
+        conn.close()
+
+        self.assertIn("idx_settled_at", indices, "El índice idx_settled_at debe existir en la BD")
+        self.assertIn("idx_team_quarantine", indices, "El índice idx_team_quarantine debe existir en la BD")
+        self.assertIn("idx_signals_created", indices, "El índice idx_signals_created debe existir en la BD")
+
 if __name__ == "__main__":
     unittest.main()

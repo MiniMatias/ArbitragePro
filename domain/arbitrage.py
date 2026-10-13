@@ -3,18 +3,34 @@ ArbitragePro NextGen - Domain Arbitrage Rules
 Reglas matemáticas puras para detección de Surebets y distribución Anti-Ban.
 """
 
+import math
 from typing import List, Dict, Any, Tuple
 
 class ArbitrageDomain:
-    """Reglas invariantes de arbitraje determinista."""
+    """Reglas invariantes de arbitraje determinista con validación numérica estricta."""
+
+    @staticmethod
+    def _is_valid_odd(odd: Any) -> bool:
+        """Verifica que una cuota sea un número real estrictamente válido (> 1.001 y finito)."""
+        if not isinstance(odd, (int, float)):
+            return False
+        if math.isnan(odd) or math.isinf(odd):
+            return False
+        return odd > 1.001
 
     @staticmethod
     def calculate_margin(odds: List[float]) -> Tuple[float, float, bool]:
-        """Calcula el margen inverso L = sum(1/odd) y ROI."""
-        if not odds or any(o <= 1.0 for o in odds):
+        """
+        Calcula el margen inverso L = sum(1/odd) y ROI.
+        Blindado contra NaN, infinitos, cuotas no finitas y división por cero.
+        """
+        if not odds or len(odds) < 2 or not all(ArbitrageDomain._is_valid_odd(o) for o in odds):
             return 1.0, 0.0, False
         
-        sum_inverse = sum(1.0 / o for o in odds)
+        sum_inverse = sum(1.0 / float(o) for o in odds)
+        if math.isnan(sum_inverse) or math.isinf(sum_inverse) or sum_inverse <= 0.0:
+            return 1.0, 0.0, False
+
         is_surebet = sum_inverse < 1.0
         
         if is_surebet:
@@ -26,9 +42,28 @@ class ArbitrageDomain:
 
     @staticmethod
     def calculate_stakes(odds: List[float], total_investment: float, anti_ban: bool = True) -> Dict[str, Any]:
-        """Calcula stakes proporcionales con redondeo entero Anti-Ban."""
+        """Calcula stakes proporcionales con redondeo entero discreto y blindaje numérico."""
+        if (not isinstance(total_investment, (int, float)) or 
+            math.isnan(total_investment) or 
+            math.isinf(total_investment) or 
+            total_investment <= 0.0):
+            total_investment = 100.0
+
         sum_l, roi, is_surebet = ArbitrageDomain.calculate_margin(odds)
-        raw_stakes = [total_investment / (sum_l * o) for o in odds]
+        if sum_l <= 0.0 or not odds or len(odds) < 2:
+            return {
+                "sum_inverse_l": 1.0,
+                "roi_percent": 0.0,
+                "is_surebet": False,
+                "anti_ban": anti_ban,
+                "total_investment": 0.0,
+                "stakes": [],
+                "raw_stakes": [],
+                "scenarios": [],
+                "min_guaranteed_profit": 0.0
+            }
+
+        raw_stakes = [total_investment / (sum_l * float(o)) for o in odds]
         
         if anti_ban:
             rounded = [int(round(s)) for s in raw_stakes]
