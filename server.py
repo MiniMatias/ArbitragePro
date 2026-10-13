@@ -16,6 +16,7 @@ from engine_arbitrage import ArbitrageEngine
 from guardrails import SafetyGuardrails
 from ml_engine import DixonColesEngine, BayesianContinuousLearner
 from backtesting.backtest_engine import BacktestEngine
+from alerts.telegram_bot import AlertDispatcher
 from config import PORT, HOST, INITIAL_BANKROLL, FRACTIONAL_KELLY
 
 # Inicializar Base de Datos y Streaming
@@ -97,6 +98,9 @@ class ArbitrageProHandler(http.server.SimpleHTTPRequestHandler):
                     cand["risk_score"] = risk_score
                     if is_safe:
                         approved_surebets.append(cand)
+                        # Despachar alerta si el ROI es mayor al 3%
+                        if cand.get("roi_percent", 0) >= 3.0:
+                            AlertDispatcher.dispatch_surebet_alert_async(cand)
                     else:
                         rejected_alerts.append(cand)
 
