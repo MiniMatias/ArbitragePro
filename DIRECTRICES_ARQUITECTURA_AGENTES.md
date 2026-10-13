@@ -356,7 +356,7 @@ El código ha sido refactorizado en una **Arquitectura Limpia de 4 Capas (Clean 
 6. **Inyecciones SQL Imposibles:** Todo el acceso a la base de datos SQLite se realiza a través de consultas con tuplas de parámetros (`?`).
 
 ### 10.3 Comandos de Ejecución para el Agente Receptor
-1. **Ejecutar Pruebas Unitarias, Cuantitativas y de Seguridad (12/12):**
+1. **Ejecutar Pruebas Unitarias, Cuantitativas y de Seguridad (14/14):**
    ```bash
    python test_engine.py
    ```
@@ -364,11 +364,15 @@ El código ha sido refactorizado en una **Arquitectura Limpia de 4 Capas (Clean 
    ```bash
    python verify_server.py
    ```
-3. **Ejecutar Simulación de Backtesting Histórico:**
+3. **Reentrenar el Modelo CatBoost Híbrido:**
+   ```bash
+   python backtesting/train_catboost.py
+   ```
+4. **Ejecutar Simulación de Backtesting Histórico:**
    ```bash
    python backtesting/backtest_engine.py
    ```
-4. **Iniciar el Servidor de Producción Blindado:**
+5. **Iniciar el Servidor de Producción Blindado:**
    ```bash
    python server.py
    ```
@@ -413,4 +417,23 @@ El código ha sido refactorizado en una **Arquitectura Limpia de 4 Capas (Clean 
 3. **Claridad sobre el "Anti-Ban" (Staking Discreto Entero):**
    - Es técnicamente falso y deshonesto prometer "inmunidad total" contra limitaciones de casas. Las casas recreacionales limitan a apostadores consistentemente ganadores que toman Closing Line Value (CLV).
    - La función del sistema no busca "engañar a la casa", sino **eliminar patrones obvios de cálculo por algoritmos automáticos** (redondeando stakes a números enteros como $45 o $55 en vez de $45.37), reduciendo las alertas tempranas de los filtros antifraude de la casa.
+
+---
+
+## 12. MOTOR HÍBRIDO TABULAR CATBOOST (MACHINE LEARNING ENSEMBLE)
+
+Para superar las limitaciones de modelos univariados de Poisson, se integró el motor de Gradient Boosting sobre árboles simétricos de CatBoost:
+
+1. **Pipeline de Inferencia Desacoplado (`infrastructure/ml/catboost_adapter.py`):**
+   - Carga el artefacto serializado `models/catboost_v1.cbm` en memoria.
+   - Ejecuta inferencia multiclase en tiempo real ($< 1.0 \text{ ms}$).
+   - **Degradación Elegante (*Graceful Fallback*):** Si la librería no está instalada o el archivo no existe, conmuta automáticamente a Dixon-Coles sin interrupción de servicio.
+2. **Ensemble Ponderado (`services/trading_service.py`):**
+   - Combina la física de goles con los patrones exógenos del clasificador:
+     $$P_{\text{final}} = 0.70 \cdot P_{\text{CatBoost}} + 0.30 \cdot P_{\text{DixonColes}}$$
+   - Garantiza que $\sum P_{1X2} = 1.0000$ con 4 decimales de precisión.
+3. **Pipeline de Entrenamiento Walk-Forward (`backtesting/train_catboost.py`):**
+   - División temporal cronológica (70% pasado, 30% futuro).
+   - Variables categóricas nativas: `home_team`, `away_team`, `league`.
+   - Priors inyectados: $\lambda$, $\mu$, probabilidades Dixon-Coles y cuotas de cierre de Pinnacle.
 

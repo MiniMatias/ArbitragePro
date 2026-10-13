@@ -11,8 +11,11 @@ from domain.ml_models import DixonColesDomain
 from infrastructure.database.repositories import TeamRepository
 from config import BENCHMARK_BOOKMAKER, INITIAL_BANKROLL, FRACTIONAL_KELLY
 
+from infrastructure.ml.catboost_adapter import CatBoostModelAdapter
+from backtesting.feature_engineering import SportsFeaturePipeline
+
 class TradingService:
-    """Caso de uso: Escaneo y validación de oportunidades de mercado."""
+    """Caso de uso: Escaneo y validación de oportunidades de mercado con Ensemble CatBoost."""
 
     @staticmethod
     def evaluate_surebet(event: Dict[str, Any]) -> SurebetOpportunity | None:
@@ -98,14 +101,34 @@ class TradingService:
         if r_h.is_quarantined or r_a.is_quarantined:
             return []
 
-        probs = DixonColesDomain.compute_match_probabilities(r_h.attack, r_h.defense, r_a.attack, r_a.defense)
+        # 1. Probabilidades base físicas Dixon-Coles
+        dc_probs = DixonColesDomain.compute_match_probabilities(r_h.attack, r_h.defense, r_a.attack, r_a.defense)
+
+        # 2. Inferencia Híbrida con CatBoost (Ensemble 70% CatBoost + 30% Dixon-Coles)
+        feats = SportsFeaturePipeline.extract_features_for_match(event)
+        cb_adapter = CatBoostModelAdapter.get_instance()
+        cb_probs, model_source = cb_adapter.predict_match_probabilities(feats, fallback_probs=dc_probs)
+
+        if model_source == "CATBOOST_ML_V1":
+            p_home = round(0.70 * cb_probs["prob_home"] + 0.30 * dc_probs["prob_home"], 4)
+            p_draw = round(0.70 * cb_probs["prob_draw"] + 0.30 * dc_probs["prob_draw"], 4)
+            p_away = round(1.0 - (p_home + p_draw), 4)
+        else:
+            p_home = dc_probs["prob_home"]
+            p_draw = dc_probs["prob_draw"]
+            p_away = dc_probs["prob_away"]
+
+        fair_odd_h = round(1.0 / p_home, 2) if p_home > 0 else 99.0
+        fair_odd_x = round(1.0 / p_draw, 2) if p_draw > 0 else 99.0
+        fair_odd_a = round(1.0 / p_away, 2) if p_away > 0 else 99.0
+
         market_1x2 = event.get("odds", {}).get("1X2", {})
 
         signals = []
         sel_tuples = [
-            ("1", probs["prob_home"], probs["fair_odd_home"], home),
-            ("X", probs["prob_draw"], probs["fair_odd_draw"], "Empate"),
-            ("2", probs["prob_away"], probs["fair_odd_away"], away)
+            ("1", p_home, fair_odd_h, home),
+            ("X", p_draw, fair_odd_x, "Empate"),
+            ("2", p_away, fair_odd_a, away)
         ]
 
         for sel, p_model, fair_o, sel_label in sel_tuples:

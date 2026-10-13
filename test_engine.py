@@ -226,5 +226,52 @@ class TestArbitrageProNextGen(unittest.TestCase):
         self.assertIn("idx_team_quarantine", indices, "El índice idx_team_quarantine debe existir en la BD")
         self.assertIn("idx_signals_created", indices, "El índice idx_signals_created debe existir en la BD")
 
+    def test_13_catboost_inference_and_ensemble(self):
+        """Verifica que el modelo CatBoost realice inferencia ultrarrápida y probabilidades calibradas."""
+        from infrastructure.ml.catboost_adapter import CatBoostModelAdapter
+        import time
+
+        adapter = CatBoostModelAdapter.get_instance()
+        self.assertTrue(adapter.is_loaded, "El artefacto CatBoost .cbm debe estar cargado en memoria")
+
+        dummy_features = {
+            "home_team": "Real Madrid",
+            "away_team": "Manchester City",
+            "league": "UEFA Champions League",
+            "dixon_p_home": 0.48,
+            "dixon_p_draw": 0.28,
+            "dixon_p_away": 0.24,
+            "lambda_home": 1.7,
+            "mu_away": 1.2,
+            "pin_odd_home": 2.15,
+            "pin_odd_draw": 3.75,
+            "pin_odd_away": 3.40,
+            "home_rest_days": 4.0,
+            "away_rest_days": 3.0
+        }
+
+        t0 = time.perf_counter()
+        probs, source = adapter.predict_match_probabilities(dummy_features)
+        latency_ms = (time.perf_counter() - t0) * 1000.0
+
+        self.assertEqual(source, "CATBOOST_ML_V1")
+        self.assertLess(latency_ms, 15.0, f"La latencia de inferencia debe ser ultrarrápida ({latency_ms:.2f} ms)")
+        tot_prob = round(probs["prob_home"] + probs["prob_draw"] + probs["prob_away"], 2)
+        self.assertAlmostEqual(tot_prob, 1.0, places=2, msg="La suma de probabilidades 1X2 debe ser 1.0")
+
+    def test_14_catboost_graceful_fallback(self):
+        """Verifica que si el modelo CatBoost no está disponible, el sistema degrade elegantemente sin caídas."""
+        from infrastructure.ml.catboost_adapter import CatBoostModelAdapter
+
+        # Instanciar adaptador con ruta inválida deliberada
+        fallback_adapter = CatBoostModelAdapter(model_path="non_existent_model.cbm")
+        self.assertFalse(fallback_adapter.is_loaded)
+
+        fallback_prior = {"prob_home": 0.50, "prob_draw": 0.25, "prob_away": 0.25}
+        probs, source = fallback_adapter.predict_match_probabilities({}, fallback_probs=fallback_prior)
+
+        self.assertEqual(source, "FALLBACK_DIXON_COLES")
+        self.assertEqual(probs["prob_home"], 0.50)
+
 if __name__ == "__main__":
     unittest.main()
