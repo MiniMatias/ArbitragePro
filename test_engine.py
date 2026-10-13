@@ -312,6 +312,31 @@ class TestArbitrageProNextGen(unittest.TestCase):
         res_bad = LearningService.settle_match("test_bad_input", team_test, team_rival, -2, 1)
         self.assertEqual(res_bad.get("error"), "INVALID_SCORES")
 
+    def test_16_multiseason_data_loader(self):
+        """Verifica la carga, normalización de FTR y consolidación multitemporada."""
+        from backtesting.dataset import BacktestDataLoader
+        matches = BacktestDataLoader.load_all_historical_seasons()
+        self.assertGreaterEqual(len(matches), 31, "Debe cargar al menos el conjunto base de partidos")
+        
+        # Verificar normalización estricta de FTR a {"1", "X", "2"}
+        for m in matches[:50]:
+            self.assertIn(m["ftr"], ["1", "X", "2"], f"FTR debe estar normalizado a 1, X, 2 (obtenido: {m['ftr']})")
+            self.assertGreater(m["b365_1"], 1.0)
+            self.assertGreater(m["pin_1"], 1.0)
+
+    def test_17_retraining_daemon_drift_detection(self):
+        """Verifica el estado del demonio de reentrenamiento y detección de deriva."""
+        from services.retraining_daemon import RetrainingDaemon
+        status = RetrainingDaemon.get_status()
+        self.assertIn("daemon_running", status)
+        self.assertIn("calibration_health", status)
+        self.assertIn("retrain_count", status)
+
+        # Probar disparo manual con degradación elegante
+        res = RetrainingDaemon.trigger_retrain("UNIT_TEST")
+        self.assertIn(res["status"], ["SUCCESS", "FALLBACK_ACTIVE"])
+        self.assertEqual(res["trigger_reason"], "UNIT_TEST")
+
 if __name__ == "__main__":
     unittest.main()
 

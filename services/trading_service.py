@@ -160,6 +160,8 @@ class TradingService:
                     max_single_bet = round(INITIAL_BANKROLL * 0.04, 2)
                     rec_stake = min(max_single_bet, max(5.0, round(INITIAL_BANKROLL * kelly, 2)))
 
+                    source_label = "CatBoost 70% + Dixon-Coles 30%" if model_source == "CATBOOST_ML_V1" else "Dixon-Coles Poisson"
+
                     signals.append(ValueBetSignal(
                         event_id=event.get("event_id", ""),
                         match=f"{home} vs {away}",
@@ -173,7 +175,8 @@ class TradingService:
                         model_probability=round(p_model * 100.0, 1),
                         edge_percent=edge,
                         recommended_stake_usd=rec_stake,
-                        brier_confidence=round(1.0 - r_h.uncertainty * 0.3, 2)
+                        brier_confidence=round(1.0 - r_h.uncertainty * 0.3, 2),
+                        model_source=source_label
                     ))
 
         return signals

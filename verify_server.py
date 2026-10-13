@@ -27,7 +27,8 @@ def test_all_endpoints():
         ("/api/surebets", "application/json"),
         ("/api/value-bets", "application/json"),
         ("/api/calibration", "application/json"),
-        ("/api/backtest/run", "application/json")
+        ("/api/backtest/run", "application/json"),
+        ("/api/retrain/status", "application/json")
     ]
 
     base_url = f"http://{HOST}:{PORT}"
@@ -45,6 +46,15 @@ def test_all_endpoints():
             assert expected_content_type in content_type, f"Error de content-type en {path}: {content_type}"
             print(f"[OK] {path.ljust(20)} -> Status: {status} | Size: {len(body)} bytes | Type: {content_type.split(';')[0]}")
             success_count += 1
+
+    # Probar endpoint POST /api/retrain/trigger
+    post_retrain_url = f"{base_url}/api/retrain/trigger"
+    req_trigger = urllib.request.Request(post_retrain_url, data=b"{}", headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req_trigger) as retrain_res:
+        retrain_data = json.loads(retrain_res.read().decode("utf-8"))
+        assert "status" in retrain_data
+        print(f"[OK] POST /api/retrain/trig -> Status: {retrain_res.status} | Res: {retrain_data['status']}")
+        success_count += 1
 
     # Probar endpoint POST /api/settle
     post_url = f"{base_url}/api/settle"

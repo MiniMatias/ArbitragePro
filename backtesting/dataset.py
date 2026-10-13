@@ -55,29 +55,74 @@ class BacktestDataLoader:
 
     @staticmethod
     def load_from_csv(csv_path: str) -> List[Dict[str, Any]]:
-        """Lee un archivo CSV estándar de football-data.co.uk."""
+        """Lee un archivo CSV estándar de football-data.co.uk con normalización estricta."""
         matches = []
         if not os.path.exists(csv_path):
             return matches
 
-        with open(csv_path, mode='r', encoding='utf-8') as f:
+        ftr_map = {"H": "1", "D": "X", "A": "2", "1": "1", "X": "X", "2": "2"}
+
+        with open(csv_path, mode='r', encoding='utf-8', errors='replace') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 try:
+                    ftr_raw = row.get("FTR", "").strip().upper()
+                    ftr = ftr_map.get(ftr_raw)
+                    if not ftr:
+                        continue
+
+                    home = row.get("HomeTeam", "").strip()
+                    away = row.get("AwayTeam", "").strip()
+                    if not home or not away:
+                        continue
+
+                    fthg = int(row.get("FTHG", 0))
+                    ftag = int(row.get("FTAG", 0))
+
+                    b365_1 = float(row.get("B365H", 0) or 0)
+                    b365_x = float(row.get("B365D", 0) or 0)
+                    b365_2 = float(row.get("B365A", 0) or 0)
+
+                    pin_1 = float(row.get("PSH", 0) or b365_1 or 1.0)
+                    pin_x = float(row.get("PSD", 0) or b365_x or 1.0)
+                    pin_2 = float(row.get("PSA", 0) or b365_2 or 1.0)
+
+                    # Filtrar registros incompletos o sin cuotas válidas
+                    if b365_1 <= 1.01 or b365_x <= 1.01 or b365_2 <= 1.01:
+                        continue
+
                     matches.append({
-                        "date": row.get("Date", ""),
-                        "home": row.get("HomeTeam", ""),
-                        "away": row.get("AwayTeam", ""),
-                        "fthg": int(row.get("FTHG", 0)),
-                        "ftag": int(row.get("FTAG", 0)),
-                        "ftr": row.get("FTR", ""),
-                        "b365_1": float(row.get("B365H", 1.0)),
-                        "b365_x": float(row.get("B365D", 1.0)),
-                        "b365_2": float(row.get("B365A", 1.0)),
-                        "pin_1": float(row.get("PSH", row.get("B365H", 1.0))),
-                        "pin_x": float(row.get("PSD", row.get("B365D", 1.0))),
-                        "pin_2": float(row.get("PSA", row.get("B365A", 1.0)))
+                        "date": row.get("Date", "").strip(),
+                        "home": home,
+                        "away": away,
+                        "fthg": fthg,
+                        "ftag": ftag,
+                        "ftr": ftr,
+                        "b365_1": b365_1,
+                        "b365_x": b365_x,
+                        "b365_2": b365_2,
+                        "pin_1": pin_1 if pin_1 > 1.01 else b365_1,
+                        "pin_x": pin_x if pin_x > 1.01 else b365_x,
+                        "pin_2": pin_2 if pin_2 > 1.01 else b365_2
                     })
                 except (ValueError, KeyError):
                     continue
         return matches
+
+    @classmethod
+    def load_all_historical_seasons(cls, directory: str | None = None) -> List[Dict[str, Any]]:
+        """Carga y consolida todos los CSVs históricos disponibles."""
+        if directory is None:
+            directory = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "historical")
+        
+        all_matches = []
+        if not os.path.exists(directory):
+            return cls.get_sample_matches()
+
+        csv_files = sorted([os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".csv")])
+        for f in csv_files:
+            matches = cls.load_from_csv(f)
+            all_matches.extend(matches)
+
+        return all_matches if all_matches else cls.get_sample_matches()
+

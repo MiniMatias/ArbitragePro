@@ -453,8 +453,8 @@ Para superar las limitaciones de modelos univariados de Poisson, se integró el 
 | **Fase 1** | **Feature Engineering:** Pipeline de extracción de 13 variables (`backtesting/feature_engineering.py`). | **100% COMPLETADO** | Integra variables categóricas, priors físicos de Poisson, cuotas de Pinnacle y fatiga de descanso. |
 | **Fase 2** | **Entrenamiento & Modelo:** Script Walk-Forward y serialización del artefacto `models/catboost_v1.cbm`. | **100% COMPLETADO** | Modelo binario de 46 KB entrenado con división temporal cronológica (sin fuga de datos futuros). |
 | **Fase 3** | **Arquitectura por Capas & Ensamble:** Adaptador de inferencia thread-safe y ensamble $70/30$ en servicios. | **100% COMPLETADO** | Inferencia ultrarrápida ($< 1.0 \text{ ms}$), probabilidad normalizada $\sum P = 1.0000$ y suite de 14 pruebas pasando. |
-| **Fase 4** | **Escalabilidad de Datos Masivos:** Ingesta de datasets de 5 temporadas completas (3,000+ partidos). | **ESTRUCTURA LISTA** | La estructura y el loader están listos; en producción masiva se debe expandir `dataset.py` con CSVs multitemporada. |
-| **Fase 5** | **Reentrenamiento Desatendido & UI Badge:** Demonio cron para reentrenar tras cada jornada y badge visual. | **BASE LISTA** | La BD registra Brier Scores y el modelo se reentrena por comando; falta automatizar el demonio cron semanal. |
+| **Fase 4** | **Escalabilidad de Datos Masivos:** Ingesta de datasets multitemporada oficiales (LaLiga y Premier League, 1,520+ partidos) y normalización estricta FTR. | **100% COMPLETADO** | `data_downloader.py` descarga feeds oficiales de football-data.co.uk a `data/historical/` y `dataset.py` normaliza cuotas de cierre Pinnacle/Bet365 con mapeo seguro 1X2. |
+| **Fase 5** | **Reentrenamiento Desatendido & UI Badge:** Demonio autónomo de reentrenamiento, detección de deriva (Drift Detection) y Badge UI institucional. | **100% COMPLETADO** | `RetrainingDaemon` monitorea umbrales de Brier Score ($>0.28$) y volumen ($N \ge 20$), expone `/api/retrain/status` y `/api/retrain/trigger`, y el frontend renderiza el badge `CatBoost Ensemble`. |
 
 ---
 

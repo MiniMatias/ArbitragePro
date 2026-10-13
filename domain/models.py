@@ -69,6 +69,7 @@ class ValueBetSignal:
     edge_percent: float
     recommended_stake_usd: float
     brier_confidence: float
+    model_source: str = "CatBoost Ensemble"
 
 @dataclass
 class MatchEvent:

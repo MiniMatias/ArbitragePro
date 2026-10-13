@@ -18,6 +18,7 @@ from config import PORT, HOST, INITIAL_BANKROLL, FRACTIONAL_KELLY
 
 from presentation.security import SecurityGuard, RateLimiter, MAX_PAYLOAD_BYTES, MAX_URI_LENGTH
 from presentation.controllers import MarketController, CalibrationController, BacktestController
+from services.retraining_daemon import RetrainingDaemon
 
 # 1. Inicialización de Capas de Infraestructura
 init_db()
@@ -138,6 +139,10 @@ class RobustArbitrageProHandler(http.server.SimpleHTTPRequestHandler):
                 res = BacktestController.run_backtest()
                 self._send_json(res)
 
+            elif path == "/api/retrain/status":
+                res = RetrainingDaemon.get_status()
+                self._send_json(res)
+
             else:
                 self._send_error_json(404, "Endpoint no encontrado.")
 
@@ -188,6 +193,11 @@ class RobustArbitrageProHandler(http.server.SimpleHTTPRequestHandler):
 
                 res = CalibrationController.settle_match(clean_data, streamer.get_live_events())
                 self._send_json(res)
+
+            elif path == "/api/retrain/trigger":
+                res = RetrainingDaemon.trigger_retrain("API_REQUEST")
+                self._send_json(res)
+
             else:
                 self._send_error_json(404, "Endpoint POST no encontrado.")
 
@@ -204,6 +214,7 @@ ArbitrageProHandler = RobustArbitrageProHandler
 ArbitrageProServer = ThreadedTCPServer
 
 def run_server():
+    RetrainingDaemon.start()
     with ThreadedTCPServer((HOST, PORT), RobustArbitrageProHandler) as httpd:
         print(f"[ARBITRAGEPRO ENGINE] Servidor robusto y blindado activo en http://{HOST}:{PORT}")
         httpd.serve_forever()

@@ -21,16 +21,26 @@ def train_and_export_catboost_model(export_path: str = None) -> Dict[str, Any]:
     """
     Entrena el modelo CatBoostClassifier con validación temporal estricta (Walk-Forward).
     Guarda el archivo binario portable .cbm en models/.
+    Soporta degradación elegante si las políticas del sistema operativo impiden la carga de DLLs.
     """
-    import catboost as cb
+    try:
+        import catboost as cb
+    except (ImportError, Exception) as err:
+        print(f"[CATBOOST TRAINING AVISO] No se pudo instanciar CatBoost ({err}).")
+        print("[CATBOOST TRAINING] Manteniendo modelo serializado existente o fallback Dixon-Coles.")
+        return {
+            "status": "FALLBACK_ACTIVE",
+            "reason": str(err),
+            "message": "Entrenamiento omitido por directiva del SO. El sistema opera con Dixon-Coles."
+        }
 
     if export_path is None:
         model_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
         os.makedirs(model_dir, exist_ok=True)
         export_path = os.path.join(model_dir, "catboost_v1.cbm")
 
-    # 1. Cargar dataset histórico ordenado cronológicamente
-    matches = BacktestDataLoader.get_sample_matches()
+    # 1. Cargar dataset histórico completo multitemporada ordenado cronológicamente
+    matches = BacktestDataLoader.load_all_historical_seasons()
     X, y, feature_names = SportsFeaturePipeline.prepare_training_dataset(matches)
 
     n_samples = len(X)

@@ -134,8 +134,11 @@ async function loadValueBets() {
     card.className = 'value-card';
     card.innerHTML = `
       <div class="value-info">
-        <span class="value-match">${vb.match} (${vb.selection})</span>
-        <span class="value-meta">Casa: <strong>${vb.bookmaker.toUpperCase()}</strong> | Cuota: <strong class="mono">${vb.market_odd}</strong> (Justa: ${vb.fair_model_odd})</span>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
+          <span class="value-match">${vb.match} (${vb.selection})</span>
+          <span class="badge-model-ensemble mono">${vb.model_source || 'CatBoost Ensemble'}</span>
+        </div>
+        <span class="value-meta">Casa: <strong>${vb.bookmaker.toUpperCase()}</strong> | Cuota: <strong class="mono">${vb.market_odd}</strong> (Justa: ${vb.fair_model_odd} | Prob: ${vb.model_probability}%)</span>
       </div>
       <div class="value-stats">
         <div>

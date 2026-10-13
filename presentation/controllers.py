@@ -71,7 +71,8 @@ class MarketController:
                     "model_probability": s.model_probability,
                     "edge_percent": s.edge_percent,
                     "recommended_stake_usd": s.recommended_stake_usd,
-                    "brier_score_confidence": s.brier_confidence
+                    "brier_score_confidence": s.brier_confidence,
+                    "model_source": s.model_source
                 })
         return {"value_signals": all_signals, "count": len(all_signals)}
 
