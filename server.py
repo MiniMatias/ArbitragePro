@@ -29,6 +29,7 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 class RobustArbitrageProHandler(http.server.SimpleHTTPRequestHandler):
     """Manejador HTTP blindado: headers seguros, anti-traversal, rate limiting y sanitización."""
+    timeout = 10.0  # Timeout de socket contra ataques Slowloris y clientes colgados
 
     def _get_client_ip(self) -> str:
         """Obtiene la IP del cliente para rate limiting."""
@@ -193,12 +194,17 @@ class RobustArbitrageProHandler(http.server.SimpleHTTPRequestHandler):
         except Exception:
             self._send_error_json(500, "Error interno al procesar solicitud POST.")
 
+# Servidor TCP Multihilo Asíncrono no bloqueante
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
 # Alias para compatibilidad hacia atrás
 ArbitrageProHandler = RobustArbitrageProHandler
+ArbitrageProServer = ThreadedTCPServer
 
 def run_server():
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer((HOST, PORT), RobustArbitrageProHandler) as httpd:
+    with ThreadedTCPServer((HOST, PORT), RobustArbitrageProHandler) as httpd:
         print(f"[ARBITRAGEPRO ENGINE] Servidor robusto y blindado activo en http://{HOST}:{PORT}")
         httpd.serve_forever()
 

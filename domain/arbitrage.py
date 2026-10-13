@@ -71,6 +71,14 @@ class ArbitrageDomain:
             if diff != 0 and rounded:
                 max_idx = rounded.index(max(rounded))
                 rounded[max_idx] += diff
+            # Salvaguarda: En inversiones reducidas, garantizar que ninguna pata quede con stake <= 0
+            if any(s <= 0 for s in rounded) and int(total_investment) >= len(rounded):
+                for idx in range(len(rounded)):
+                    if rounded[idx] <= 0:
+                        rounded[idx] = 1
+                rem_diff = int(total_investment) - sum(rounded)
+                max_idx = rounded.index(max(rounded))
+                rounded[max_idx] += rem_diff
             final_stakes = rounded
         else:
             final_stakes = [round(s, 2) for s in raw_stakes]

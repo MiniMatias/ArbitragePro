@@ -8,10 +8,10 @@ import time
 import urllib.request
 import json
 import socketserver
-from server import ArbitrageProHandler, HOST, PORT
+from server import ArbitrageProHandler, ThreadedTCPServer, HOST, PORT
 
 def test_all_endpoints():
-    server = socketserver.TCPServer((HOST, PORT), ArbitrageProHandler)
+    server = ThreadedTCPServer((HOST, PORT), ArbitrageProHandler)
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
     print(f"Servidor temporal iniciado en http://{HOST}:{PORT}")

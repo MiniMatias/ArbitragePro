@@ -141,9 +141,24 @@ class TradingService:
             if best_o > fair_o:
                 edge = round(((p_model * best_o) - 1.0) * 100.0, 2)
                 if edge >= 3.0:
+                    # Filtro Anti-Palpable Error institucional para Value Bets:
+                    # Rechazar señales si divergen críticamente frente al benchmark eficiente (Pinnacle)
+                    pin_odd = market_1x2.get(BENCHMARK_BOOKMAKER, {}).get(sel)
+                    is_palp, _ = GuardrailsDomain.is_palpable_error(best_o, pin_odd, edge)
+                    if is_palp:
+                        continue
+
                     b = best_o - 1.0
-                    kelly = ((p_model * b - (1.0 - p_model)) / b) * FRACTIONAL_KELLY if b > 0 else 0
-                    rec_stake = max(5.0, round(INITIAL_BANKROLL * kelly, 2))
+                    if b <= 0:
+                        continue
+
+                    kelly = ((p_model * b - (1.0 - p_model)) / b) * FRACTIONAL_KELLY
+                    if kelly <= 0:
+                        continue
+
+                    # Gestión de Riesgo Institucional: Techo de exposición máxima de 4.0% de bankroll por posición
+                    max_single_bet = round(INITIAL_BANKROLL * 0.04, 2)
+                    rec_stake = min(max_single_bet, max(5.0, round(INITIAL_BANKROLL * kelly, 2)))
 
                     signals.append(ValueBetSignal(
                         event_id=event.get("event_id", ""),

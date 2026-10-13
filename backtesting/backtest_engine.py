@@ -222,4 +222,4 @@ if __name__ == "__main__":
     print(f"Bankroll Final: ${res['final_bankroll_usd']} USD (Ganancia Neta: +${res['net_profit_usd']})")
     print(f"ROI acumulado: +{res['roi_percent']}%")
     print(f"Max Drawdown: -{res['max_drawdown_percent']}%")
-    print(f"Brier Score Inicial: {res['brier_score_initial_half']} -> Calibrado: {res['brier_score_learned_half']} (Mejora: +{res['brier_accuracy_improvement_pct']}%)")
+    print(f"Brier Score Inicial: {res['brier_score_initial_half']} -> Calibrado: {res['brier_score_learned_half']} (Variación: {res['brier_accuracy_improvement_pct']:+.1f}%)")

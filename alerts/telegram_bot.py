@@ -8,6 +8,7 @@ import urllib.request
 import urllib.parse
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, List
 import sys
 import os
@@ -19,7 +20,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 class AlertDispatcher:
-    """Despachador asíncrono de alertas push a Telegram y webhooks."""
+    """Despachador asíncrono de alertas push a Telegram y webhooks con pool de trabajadores acotado."""
+    _executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="AlertWorker")
 
     @staticmethod
     def send_telegram_message(message_html: str) -> bool:
@@ -47,8 +49,8 @@ class AlertDispatcher:
 
     @classmethod
     def dispatch_surebet_alert_async(cls, surebet: Dict[str, Any]):
-        """Despacha alerta de Surebet en un hilo secundario para no bloquear el motor."""
-        threading.Thread(target=cls._send_surebet_alert, args=(surebet,), daemon=True).start()
+        """Despacha alerta de Surebet en un pool acotado para no saturar el sistema operativo."""
+        cls._executor.submit(cls._send_surebet_alert, surebet)
 
     @classmethod
     def _send_surebet_alert(cls, arb: Dict[str, Any]):
@@ -70,8 +72,8 @@ class AlertDispatcher:
 
     @classmethod
     def dispatch_value_bet_alert_async(cls, value_bet: Dict[str, Any]):
-        """Despacha alerta de Value Bet institucional."""
-        threading.Thread(target=cls._send_value_alert, args=(value_bet,), daemon=True).start()
+        """Despacha alerta de Value Bet institucional en un pool acotado."""
+        cls._executor.submit(cls._send_value_alert, value_bet)
 
     @classmethod
     def _send_value_alert(cls, vb: Dict[str, Any]):

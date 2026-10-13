@@ -10,6 +10,7 @@ from typing import Dict, Tuple, Optional, Any
 
 import hashlib
 import secrets
+import threading
 
 # Constantes de Seguridad
 MAX_PAYLOAD_BYTES = 65536  # 64 KB máximo por solicitud para prevenir ataques de denegación de servicio (DoS)
@@ -19,12 +20,13 @@ RATE_LIMIT_WINDOW_SECONDS = 60.0  # Ventana de 1 minuto
 
 class RateLimiter:
     """
-    Limitador de tasa en memoria con pseudonimización criptográfica (Sliding Window).
+    Limitador de tasa en memoria thread-safe con pseudonimización criptográfica (Sliding Window).
     Cumple con el principio de minimización de datos (GDPR Art. 5.1.c / LOPDP Art. 10):
     Las direcciones IP reales jamás se conservan en texto plano en memoria ni en logs.
     """
     _salt: str = secrets.token_hex(16)
     _requests: Dict[str, list] = {}
+    _lock = threading.Lock()
 
     @classmethod
     def _hash_ip(cls, client_ip: str) -> str:
@@ -35,25 +37,26 @@ class RateLimiter:
     @classmethod
     def is_allowed(cls, client_ip: str) -> bool:
         now = time.time()
-        cls._cleanup(now)
-
         ip_key = cls._hash_ip(client_ip)
 
-        if ip_key not in cls._requests:
-            cls._requests[ip_key] = []
+        with cls._lock:
+            cls._cleanup(now)
 
-        # Filtrar solo solicitudes dentro de la ventana actual
-        cls._requests[ip_key] = [t for t in cls._requests[ip_key] if (now - t) < RATE_LIMIT_WINDOW_SECONDS]
+            if ip_key not in cls._requests:
+                cls._requests[ip_key] = []
 
-        if len(cls._requests[ip_key]) >= RATE_LIMIT_MAX_REQUESTS:
-            return False
+            # Filtrar solo solicitudes dentro de la ventana actual
+            cls._requests[ip_key] = [t for t in cls._requests[ip_key] if (now - t) < RATE_LIMIT_WINDOW_SECONDS]
 
-        cls._requests[ip_key].append(now)
-        return True
+            if len(cls._requests[ip_key]) >= RATE_LIMIT_MAX_REQUESTS:
+                return False
+
+            cls._requests[ip_key].append(now)
+            return True
 
     @classmethod
     def _cleanup(cls, now: float):
-        """Limpia registros antiguos para evitar fugas de memoria."""
+        """Limpia registros antiguos para evitar fugas de memoria (llamado dentro de _lock)."""
         if len(cls._requests) > 1000:
             for k in list(cls._requests.keys()):
                 cls._requests[k] = [t for t in cls._requests[k] if (now - t) < RATE_LIMIT_WINDOW_SECONDS]
@@ -97,6 +100,16 @@ class SecurityGuard:
 
         # El prefijo absoluto debe ser exactamente el directorio base
         if not full_path.startswith(base_dir_abs):
+            return False, None
+
+        # Mitigación de nombres reservados de dispositivo en Windows (ej. CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+        filename_base = os.path.splitext(os.path.basename(full_path))[0].upper()
+        reserved_devices = {
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+        }
+        if filename_base in reserved_devices:
             return False, None
 
         if not os.path.exists(full_path) or not os.path.isfile(full_path):

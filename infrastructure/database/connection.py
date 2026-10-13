@@ -16,9 +16,10 @@ class DatabaseConnection:
         conn = sqlite3.connect(DB_FILE, timeout=10.0)
         conn.row_factory = sqlite3.Row
         
-        # Pragmas de rendimiento y resiliencia ante cortes
+        # Pragmas de rendimiento y resiliencia ante cortes y contención concurrente
         cursor = conn.cursor()
         cursor.execute("PRAGMA journal_mode = WAL;")      # Concurrencia alta lectura/escritura
+        cursor.execute("PRAGMA busy_timeout = 10000;")     # Esperar hasta 10s ante bloqueos concurrentes
         cursor.execute("PRAGMA synchronous = NORMAL;")     # Integridad con baja latencia I/O
         cursor.execute("PRAGMA foreign_keys = ON;")       # Restricción de integridad referencial
         cursor.close()
