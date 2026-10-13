@@ -11,7 +11,7 @@ import time
 from urllib.parse import urlparse
 from typing import Any, Dict
 
-from database import init_db, seed_default_teams
+from infrastructure.database import init_db, seed_default_teams
 from market_streamer import MarketStreamer
 from alerts.telegram_bot import AlertDispatcher
 from config import PORT, HOST, INITIAL_BANKROLL, FRACTIONAL_KELLY

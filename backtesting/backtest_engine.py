@@ -10,9 +10,9 @@ import os
 
 # Asegurar import de módulos hermanos
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from ml_engine import DixonColesEngine
-from engine_arbitrage import ArbitrageEngine
-from guardrails import SafetyGuardrails
+from domain.ml_models import DixonColesDomain, DixonColesEngine
+from domain.arbitrage import ArbitrageDomain, ArbitrageEngine
+from domain.guardrails import GuardrailsDomain, SafetyGuardrails
 from backtesting.dataset import BacktestDataLoader
 
 class BacktestEngine:

@@ -7,9 +7,7 @@ import time
 import random
 import threading
 from typing import Dict, Any, List
-from ml_engine import DixonColesEngine, BayesianContinuousLearner
-from guardrails import SafetyGuardrails
-from engine_arbitrage import ArbitrageEngine
+from services.learning_service import LearningService
 from config import SIMULATION_TICK_SECONDS, THE_ODDS_API_KEY
 
 class MarketStreamer:
@@ -170,19 +168,12 @@ class MarketStreamer:
                             if match["minute"] >= 90:
                                 match["status"] = "FINISHED"
                                 try:
-                                    # Ejecutar aprendizaje bayesiano post-partido
-                                    r_h = BayesianContinuousLearner.get_team_rating(match["home_team"])
-                                    r_a = BayesianContinuousLearner.get_team_rating(match["away_team"])
-                                    probs = DixonColesEngine.compute_match_probabilities(
-                                        r_h["attack"], r_h["defense"], r_a["attack"], r_a["defense"]
-                                    )
-                                    BayesianContinuousLearner.settle_match_and_learn(
+                                    LearningService.settle_match(
                                         event_id=match["event_id"],
                                         home_team=match["home_team"],
                                         away_team=match["away_team"],
                                         home_score=match["score"]["home"],
-                                        away_score=match["score"]["away"],
-                                        predicted_probs=probs
+                                        away_score=match["score"]["away"]
                                     )
                                 except Exception as settle_err:
                                     # Evitar propagación en el hilo secundario
@@ -213,17 +204,10 @@ class MarketStreamer:
             match["score"] = {"home": home_score, "away": away_score}
             match["minute"] = 90
 
-            r_h = BayesianContinuousLearner.get_team_rating(match["home_team"])
-            r_a = BayesianContinuousLearner.get_team_rating(match["away_team"])
-            probs = DixonColesEngine.compute_match_probabilities(
-                r_h["attack"], r_h["defense"], r_a["attack"], r_a["defense"]
-            )
-            result = BayesianContinuousLearner.settle_match_and_learn(
+            return LearningService.settle_match(
                 event_id=match["event_id"],
                 home_team=match["home_team"],
                 away_team=match["away_team"],
                 home_score=home_score,
-                away_score=away_score,
-                predicted_probs=probs
+                away_score=away_score
             )
-            return result

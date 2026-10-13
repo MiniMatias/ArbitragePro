@@ -101,3 +101,7 @@ class ArbitrageDomain:
             "scenarios": scenarios,
             "min_guaranteed_profit": min_profit
         }
+
+# Alias para compatibilidad hacia atrás
+ArbitrageEngine = ArbitrageDomain
+

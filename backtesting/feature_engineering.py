@@ -12,7 +12,8 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from typing import List, Dict, Any, Tuple
-from ml_engine import DixonColesEngine, BayesianContinuousLearner
+from domain.ml_models import DixonColesDomain
+from infrastructure.database.repositories import TeamRepository
 
 class SportsFeaturePipeline:
     """Extractor determinista de variables explicativas para partidos de fútbol."""
@@ -30,16 +31,20 @@ class SportsFeaturePipeline:
         away = match.get("away", match.get("away_team", ""))
         league = match.get("league", "LaLiga")
 
-        # 1. Recuperar ratings bayesianos de los equipos
-        r_h = BayesianContinuousLearner.get_team_rating(home)
-        r_a = BayesianContinuousLearner.get_team_rating(away)
+        # 1. Recuperar ratings de los equipos desde repositorio
+        r_h = TeamRepository.get_by_name(home)
+        r_a = TeamRepository.get_by_name(away)
+        att_h = r_h.attack if r_h else 1.0
+        def_h = r_h.defense if r_h else 1.0
+        att_a = r_a.attack if r_a else 1.0
+        def_a = r_a.defense if r_a else 1.0
 
         # 2. Computar distribución física Dixon-Coles
-        dc_probs = DixonColesEngine.compute_match_probabilities(
-            attack_h=r_h["attack"],
-            defense_h=r_h["defense"],
-            attack_a=r_a["attack"],
-            defense_a=r_a["defense"]
+        dc_probs = DixonColesDomain.compute_match_probabilities(
+            attack_h=att_h,
+            defense_h=def_h,
+            attack_a=att_a,
+            defense_a=def_a
         )
 
         # 3. Extraer cuotas de referencia (Pinnacle o Bet365)

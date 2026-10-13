@@ -24,31 +24,39 @@ Software diseñado para calcular discrepancias matemáticas entre casas de apues
 
 ---
 
-## 💻 Cómo Ejecutar la Aplicación en tu Computadora
+## 🚀 Cómo Ejecutar la Plataforma en Producción
 
-No necesitas instalar Node.js ni configurar bases de datos para usarla ahora mismo:
+ArbitragePro NextGen opera como un servidor HTTP asíncrono con arquitectura blindada en 4 capas y terminal web en tiempo real:
 
-1. Dirígete a la carpeta:
-   `C:\Users\pasante.desarrollo1\.gemini\antigravity-ide\scratch\surebet-calculator`
-2. Haz doble clic en el archivo **`index.html`**. Se abrirá de inmediato en tu navegador (Chrome, Edge, etc.).
+1. **Iniciar el Servidor Cuantitativo:**
+   ```bash
+   py server.py
+   ```
+2. **Acceder a la Terminal Web:**
+   Abrir en cualquier navegador: `http://127.0.0.1:8080`
+
+3. **Ejecutar Suite de Pruebas Unitarias y de Seguridad:**
+   ```bash
+   py test_engine.py
+   ```
+
+4. **Verificar Endpoints REST y Encabezados OWASP:**
+   ```bash
+   py verify_server.py
+   ```
+
+5. **Simulación de Backtesting Histórico:**
+   ```bash
+   py backtesting/backtest_engine.py
+   ```
 
 ---
 
-## 📈 Hoja de Ruta para Escalado Comercial (Venta / SaaS)
+## 🏛️ Arquitectura Limpia en 4 Capas (Clean Architecture)
 
-Para convertir esta herramienta en un producto de venta por suscripción ($10 a $25 USD/mes) o venta de licencia única:
+- **`domain/`**: Entidades inmutables, reglas deterministas de Surebet, Poisson Dixon-Coles y Guardrails anti-catástrofe (Cero I/O, cero dependencias).
+- **`services/`**: Casos de uso (`TradingService` y `LearningService`) para escaneo de cuotas, bucle bayesiano y ensamble CatBoost.
+- **`infrastructure/`**: Conexión SQLite WAL thread-safe, Repositorios SQL parametrizados, notificador Telegram y adaptador de inferencia ML.
+- **`presentation/`**: Middleware de seguridad OWASP (Anti-Path Traversal, límite DoS 64 KB, Rate Limiting con hash SHA-256 de IPs) y controladores REST desacoplados.
+- **`static/`**: Dashboard Fintech Dark Mode con streaming en tiempo real.
 
-### Fase 1 (Actual - Versión MVP / Core)
-- [x] Motor matemático completo de 2 y 3 vías.
-- [x] Redondeo anti-detección.
-- [x] Historial y exportación CSV.
-
-### Fase 2 (Monetización & Autenticación)
-- [ ] Integrar autenticación de usuarios (Supabase o Firebase Auth gratuita).
-- [ ] Pasarela de pagos para Ecuador e internacional:
-  - Internacional: LemonSqueezy o Stripe.
-  - Ecuador: Payphone o transferencias directas verificadas por bot.
-- [ ] Planes: Plan Gratis (solo 2 vías) y Plan Pro ($10/mes para 3 vías, exportación y cálculo avanzado).
-
-### Fase 3 (Automatización de Cuotas en Vivo)
-- [ ] Conectar una API pública o scraper ligero (ej. *The Odds API*) para que el software busque automáticamente las cuotas de Ecuabet vs Bet365 y avise al usuario mediante una alerta o notificación de Telegram cuando surja una oportunidad.

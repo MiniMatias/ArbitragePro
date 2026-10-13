@@ -9,8 +9,11 @@ class GuardrailsDomain:
     """Reglas invariantes de mitigación de riesgo."""
 
     @staticmethod
-    def is_palpable_error(candidate_odd: float, benchmark_odd: float | None, roi_pct: float, max_roi: float = 12.0) -> Tuple[bool, str]:
+    def is_palpable_error(candidate_odd: float, benchmark_odd: float | None, roi_pct: float = 0.0, max_roi: float = 12.0, **kwargs) -> Tuple[bool, str]:
         """Detecta si una cuota tiene riesgo de anulación por la casa (Palpable Error)."""
+        if "roi_percent" in kwargs:
+            roi_pct = kwargs["roi_percent"]
+
         if roi_pct > max_roi:
             return True, f"ROI anómalo ({roi_pct}% > {max_roi}%). Riesgo de anulación por casa."
 
@@ -31,3 +34,11 @@ class GuardrailsDomain:
             if loss_pct >= max_drawdown_pct:
                 return True, f"Circuit Breaker activado: Pérdida diaria de {loss_pct:.2f}% excede el límite permitido ({max_drawdown_pct}%)."
         return False, "Bankroll dentro de márgenes seguros."
+
+    # Compatibilidad de interfaz
+    detect_palpable_error = is_palpable_error
+    check_circuit_breaker = is_circuit_breaker_active
+
+# Alias para compatibilidad hacia atrás
+SafetyGuardrails = GuardrailsDomain
+

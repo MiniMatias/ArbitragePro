@@ -80,3 +80,7 @@ class DixonColesDomain:
         y_x = 1.0 if actual == "X" else 0.0
         y_a = 1.0 if actual == "2" else 0.0
         return round(((pred_home - y_h) ** 2) + ((pred_draw - y_x) ** 2) + ((pred_away - y_a) ** 2), 4)
+
+# Alias para compatibilidad hacia atrás
+DixonColesEngine = DixonColesDomain
+

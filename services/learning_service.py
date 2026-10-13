@@ -69,3 +69,29 @@ class LearningService:
                 away_team: {"attack": r_a.attack, "defense": r_a.defense, "uncertainty": r_a.uncertainty, "quarantined": r_a.is_quarantined}
             }
         }
+
+    @staticmethod
+    def get_team_rating(team_name: str) -> Dict[str, Any]:
+        """Obtiene el rating estructurado de un equipo para retrocompatibilidad."""
+        r = TeamRepository.get_by_name(team_name)
+        if r:
+            return {
+                "team_name": r.team_name,
+                "league": r.league,
+                "attack": r.attack,
+                "defense": r.defense,
+                "uncertainty": r.uncertainty,
+                "consecutive_errors": r.consecutive_errors,
+                "is_quarantined": r.is_quarantined,
+                "matches_played": r.matches_played
+            }
+        return {"team_name": team_name, "league": "Generic", "attack": 1.0, "defense": 1.0, "uncertainty": 1.0, "consecutive_errors": 0, "is_quarantined": False, "matches_played": 0}
+
+    @classmethod
+    def settle_match_and_learn(cls, event_id: str, home_team: str, away_team: str, home_score: int, away_score: int, predicted_probs: Any = None) -> Dict[str, Any]:
+        """Alias compatible para liquidación y aprendizaje."""
+        return cls.settle_match(event_id, home_team, away_team, home_score, away_score)
+
+# Alias para compatibilidad hacia atrás
+BayesianContinuousLearner = LearningService
+
