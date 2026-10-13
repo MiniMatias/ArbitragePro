@@ -1,8 +1,18 @@
-# OS generated files
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Database
+*.db
+arbitrage_pro.db
+
+# OS
+.DS_Store
 Thumbs.db
 ehthumbs.db
 Desktop.ini
-.DS_Store
 
 # Logs & temp
 *.log

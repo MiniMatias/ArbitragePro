@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArbitragePro NextGen | Terminal Cuantitativa & ML</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Navigation Header -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="brand-badge-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div>
+          <div class="brand-title">Arbitrage<span>Pro</span> <span class="tag-ai">NextGen AI</span></div>
+          <div class="brand-desc">Motor Cuantitativo Dual: Surebets & Machine Learning Bayesiano</div>
+        </div>
+      </div>
+
+      <div class="header-metrics">
+        <div class="system-status">
+          <span class="live-dot"></span>
+          <span id="sys-status-text">Streaming en Vivo Activo</span>
+        </div>
+        <div class="bankroll-pill">
+          <span class="pill-label">Bankroll Total:</span>
+          <span class="pill-value mono" id="header-bankroll">$1,000.00 USD</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- KPI Metric Cards Grid -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-title">Surebets Validadas</div>
+        <div class="kpi-value mono" id="kpi-surebets-count">0</div>
+        <div class="kpi-sub positive" id="kpi-surebets-sub">Filtro Anti-Palp Activo</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">Señales Value Bets (ML)</div>
+        <div class="kpi-value mono" id="kpi-valuebets-count">0</div>
+        <div class="kpi-sub highlight" id="kpi-valuebets-sub">Quarter-Kelly Óptimo</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">Calibración (Brier Score)</div>
+        <div class="kpi-value mono" id="kpi-brier-score">0.185</div>
+        <div class="kpi-sub positive" id="kpi-brier-status">Calibración Óptima</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">Protección de Sesgo</div>
+        <div class="kpi-value mono" id="kpi-quarantine-count">0 Equipos</div>
+        <div class="kpi-sub" id="kpi-quarantine-sub">En Cuarentena Preventiva</div>
+      </div>
+    </section>
+
+    <!-- Main Live Workspace -->
+    <main class="dashboard-body">
+      <!-- Left Column: Live Matches Feed -->
+      <div class="column-left">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>⚽ Partidos en Vivo & Mercados</h3>
+            <span class="badge-live" id="live-badge-count">4 Activos</span>
+          </div>
+          <div class="events-list" id="events-container">
+            <!-- Renderizado dinámico -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Dual Engines (Surebets & Value Bets) -->
+      <div class="column-right">
+        <!-- Panel 1: Surebets Aprobadas -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h3>💎 Oportunidades de Arbitraje Seguro (Surebets)</h3>
+              <p class="panel-sub">Filtradas contra Palpable Errors, Slippage y con Redondeo Anti-Ban</p>
+            </div>
+            <div class="toggle-wrap">
+              <label class="switch">
+                <input type="checkbox" id="anti-ban-check" checked>
+                <span class="slider round"></span>
+              </label>
+              <span class="switch-caption">Anti-Ban</span>
+            </div>
+          </div>
+          <div id="surebets-container">
+            <!-- Renderizado dinámico -->
+          </div>
+        </div>
+
+        <!-- Panel 2: Señales de Machine Learning -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h3>🧠 Señales Predictivas de Valor Cuantitativo (Dixon-Coles)</h3>
+              <p class="panel-sub">Probabilidades justas modeladas vs Cuota de la casa de apuestas</p>
+            </div>
+          </div>
+          <div id="valuebets-container">
+            <!-- Renderizado dinámico -->
+          </div>
+        </div>
+
+        <!-- Panel 3: Bucle de Aprendizaje Continuo (Feedback Loop) -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h3>🔄 Auditoría de Aprendizaje Continuo Post-Partido</h3>
+              <p class="panel-sub">Recalibración de ratings bayesianos y eliminación de sesgos</p>
+            </div>
+            <button class="btn-action" onclick="triggerTestSettlement()">Simular Fin de Partido & Aprender</button>
+          </div>
+          <div class="learning-audit-box" id="audit-container">
+            <!-- Renderizado dinámico -->
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div>ArbitragePro NextGen &bull; Quantitative Sports Intelligence Architecture</div>
+      <div class="footer-links">
+        <span>Benchmark: Pinnacle</span> &bull; 
+        <span>Algoritmo: Dixon-Coles Bivariado</span> &bull; 
+        <span>Filtro: Zero-Disaster Guardrails</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
