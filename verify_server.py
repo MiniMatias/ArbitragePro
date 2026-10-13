@@ -26,7 +26,8 @@ def test_all_endpoints():
         ("/api/live-events", "application/json"),
         ("/api/surebets", "application/json"),
         ("/api/value-bets", "application/json"),
-        ("/api/calibration", "application/json")
+        ("/api/calibration", "application/json"),
+        ("/api/backtest/run", "application/json")
     ]
 
     base_url = f"http://{HOST}:{PORT}"

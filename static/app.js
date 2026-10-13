@@ -197,3 +197,40 @@ async function triggerTestSettlement() {
     alert("Error al simular liquidación: " + err);
   }
 }
+
+async function runHistoricalBacktest() {
+  const container = document.getElementById('backtest-container');
+  container.innerHTML = `<div style="padding: 10px; color: var(--accent-cyan); font-size: 0.85rem; text-align: center;">Ejecutando simulación cronológica walk-forward...</div>`;
+  try {
+    const res = await fetch('/api/backtest/run');
+    const data = await res.json();
+    container.innerHTML = `
+      <div class="audit-item">
+        <span>Partidos Evaluados:</span>
+        <strong class="mono">${data.matches_evaluated}</strong>
+      </div>
+      <div class="audit-item">
+        <span>Operaciones Ejecutadas (Filtros Institucionales):</span>
+        <strong class="mono">${data.total_trades} (${data.win_trades} aciertos - ${data.win_rate_percent}%)</strong>
+      </div>
+      <div class="audit-item">
+        <span>Capital Final (Inicio $1,000 USD):</span>
+        <strong class="mono" style="color: var(--accent-green);">$${data.final_bankroll_usd} USD (+${data.roi_percent}% ROI)</strong>
+      </div>
+      <div class="audit-item">
+        <span>Máximo Drawdown Controlado:</span>
+        <strong class="mono" style="color: var(--accent-amber);">${data.max_drawdown_percent}%</strong>
+      </div>
+      <div class="audit-item">
+        <span>Ratio de Sharpe Anualizado:</span>
+        <strong class="mono" style="color: var(--accent-cyan);">${data.sharpe_ratio}</strong>
+      </div>
+      <div class="audit-item">
+        <span>Evolución Brier Score:</span>
+        <span class="mono">${data.brier_score_initial_half} &rarr; ${data.brier_score_learned_half}</span>
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div style="color: var(--accent-rose); padding: 10px;">Error al ejecutar backtest: ${err}</div>`;
+  }
+}

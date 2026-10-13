@@ -106,5 +106,17 @@ class TestArbitrageProNextGen(unittest.TestCase):
         self.assertGreaterEqual(updated_rating["attack"], init_att, "El ataque debe ajustarse positivamente tras una goleada")
         self.assertLess(updated_rating["uncertainty"], init_unc, "La incertidumbre del modelo debe reducirse tras observar el partido")
 
+    def test_06_backtest_simulation_coherence(self):
+        """Verifica que la simulación histórica walk-forward genere métricas estadísticas válidas."""
+        from backtesting.backtest_engine import BacktestEngine
+        engine = BacktestEngine(initial_bankroll=1000.0)
+        report = engine.run_backtest()
+
+        self.assertGreater(report["matches_evaluated"], 0)
+        self.assertIn("roi_percent", report)
+        self.assertIn("max_drawdown_percent", report)
+        self.assertIn("equity_curve", report)
+        self.assertGreaterEqual(report["final_bankroll_usd"], 0.0)
+
 if __name__ == "__main__":
     unittest.main()

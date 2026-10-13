@@ -15,6 +15,7 @@ from market_streamer import MarketStreamer
 from engine_arbitrage import ArbitrageEngine
 from guardrails import SafetyGuardrails
 from ml_engine import DixonColesEngine, BayesianContinuousLearner
+from backtesting.backtest_engine import BacktestEngine
 from config import PORT, HOST, INITIAL_BANKROLL, FRACTIONAL_KELLY
 
 # Inicializar Base de Datos y Streaming
@@ -189,6 +190,11 @@ class ArbitrageProHandler(http.server.SimpleHTTPRequestHandler):
                 "recent_settled_matches": recent_settled,
                 "teams_state": teams
             })
+
+        elif path == "/api/backtest/run":
+            engine = BacktestEngine(initial_bankroll=INITIAL_BANKROLL)
+            results = engine.run_backtest()
+            self._send_json(results)
         else:
             self.send_error(404, "Endpoint not found")
 

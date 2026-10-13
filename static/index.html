@@ -122,6 +122,22 @@
             <!-- Renderizado dinámico -->
           </div>
         </div>
+
+        <!-- Panel 4: Backtesting Histórico & Validación Cuantitativa -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h3>📊 Backtesting Histórico Cuantitativo</h3>
+              <p class="panel-sub">Simulación walk-forward con cuotas reales históricas y filtros institucionales</p>
+            </div>
+            <button class="btn-action" style="background: linear-gradient(135deg, #38bdf8, #a855f7);" onclick="runHistoricalBacktest()">Ejecutar Backtest</button>
+          </div>
+          <div class="learning-audit-box" id="backtest-container">
+            <div style="padding: 10px; color: var(--text-muted); font-size: 0.82rem; text-align: center;">
+              Presiona "Ejecutar Backtest" para validar la estrategia en partidos históricos reales.
+            </div>
+          </div>
+        </div>
       </div>
     </main>
 
