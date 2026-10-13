@@ -437,3 +437,73 @@ Para superar las limitaciones de modelos univariados de Poisson, se integró el 
    - Variables categóricas nativas: `home_team`, `away_team`, `league`.
    - Priors inyectados: $\lambda$, $\mu$, probabilidades Dixon-Coles y cuotas de cierre de Pinnacle.
 
+---
+
+## 13. ESTADO DE DESARROLLO POR FASES Y GUÍA DE TRANSICIÓN PARA NUEVO DISPOSITIVO
+
+> [!IMPORTANT]
+> **Manual de Traspaso Operativo (Handover Protocol):**
+> Esta sección detalla el estado exacto de cada fase y las instrucciones paso a paso para que cualquier agente de IA o desarrollador continúe el proyecto en una nueva computadora sin fricciones ni ambigüedades.
+
+### 13.1 Matriz de Estado de Fases de Desarrollo
+
+| Fase | Alcance y Entregables | Estado | Observación Técnica Autocrítica |
+| :--- | :--- | :---: | :--- |
+| **Fase 0** | **Entorno y Dependencias:** Instalación de `catboost`, `numpy`, `pandas`, `scipy`, `scikit-learn`. | **100% COMPLETADO** | Verificado en Python 3.13 con degradación elegante (*Graceful Fallback*) si faltan binarios. |
+| **Fase 1** | **Feature Engineering:** Pipeline de extracción de 13 variables (`backtesting/feature_engineering.py`). | **100% COMPLETADO** | Integra variables categóricas, priors físicos de Poisson, cuotas de Pinnacle y fatiga de descanso. |
+| **Fase 2** | **Entrenamiento & Modelo:** Script Walk-Forward y serialización del artefacto `models/catboost_v1.cbm`. | **100% COMPLETADO** | Modelo binario de 46 KB entrenado con división temporal cronológica (sin fuga de datos futuros). |
+| **Fase 3** | **Arquitectura por Capas & Ensamble:** Adaptador de inferencia thread-safe y ensamble $70/30$ en servicios. | **100% COMPLETADO** | Inferencia ultrarrápida ($< 1.0 \text{ ms}$), probabilidad normalizada $\sum P = 1.0000$ y suite de 14 pruebas pasando. |
+| **Fase 4** | **Escalabilidad de Datos Masivos:** Ingesta de datasets de 5 temporadas completas (3,000+ partidos). | **ESTRUCTURA LISTA** | La estructura y el loader están listos; en producción masiva se debe expandir `dataset.py` con CSVs multitemporada. |
+| **Fase 5** | **Reentrenamiento Desatendido & UI Badge:** Demonio cron para reentrenar tras cada jornada y badge visual. | **BASE LISTA** | La BD registra Brier Scores y el modelo se reentrena por comando; falta automatizar el demonio cron semanal. |
+
+---
+
+### 13.2 Instrucciones para Continuar en un Nuevo Dispositivo
+
+Cualquier nuevo agente o desarrollador que clone el proyecto en otra máquina debe seguir este procedimiento exacto:
+
+#### Paso 1: Clonar el Repositorio y Rama Activa
+```bash
+git clone https://github.com/MiniMatias/ArbitragePro.git
+cd ArbitragePro
+git checkout feature/nextgen-ai
+git pull origin feature/nextgen-ai
+```
+
+#### Paso 2: Configurar el Entorno Python
+Asegurar Python 3.10 o superior (recomendado Python 3.12 o 3.13) e instalar las dependencias:
+```bash
+pip install catboost numpy pandas scikit-learn scipy
+```
+*(Nota: Si CatBoost no se instala en la máquina receptora, el sistema seguirá funcionando al 100% gracias al Fallback automático a Dixon-Coles).*
+
+#### Paso 3: Ejecutar la Certificación de Calidad (Suites de Pruebas)
+Verificar que la máquina receptora pasa el 100% de los controles antes de tocar código:
+```bash
+# 1. Pruebas Unitarias, Cuantitativas y de Inferencia (14/14 tests deben pasar):
+python test_engine.py
+
+# 2. Pruebas de Servidor HTTP y Encabezados OWASP (11/11 endpoints deben responder 200/414):
+python verify_server.py
+```
+
+#### Paso 4: Hoja de Ruta Inmediata para el Nuevo Dispositivo (Fases 4 y 5)
+1. **Expandir Dataset (`Fase 4`):**
+   - Descargar los CSVs históricos de `https://www.football-data.co.uk/spainm.shtml` (temporadas 2021/22, 2022/23, 2023/24, 2024/25) y guardarlos en una carpeta `data/historical/`.
+   - Modificar `backtesting/train_catboost.py` para iterar sobre estos CSVs usando `BacktestDataLoader.load_from_csv()`.
+   - Reentrenar el modelo ejecutando `python backtesting/train_catboost.py`.
+2. **Badge Visual en Frontend (`Fase 5`):**
+   - En `static/app.js` y `static/index.html`, agregar un pill/badge visual en la tarjeta de Value Bet que diga:
+     `<span class="badge badge-catboost">CatBoost Ensemble</span>`
+3. **Mantenimiento del Servidor:**
+   - Iniciar el servidor blindado con: `python server.py` (puerto 8080).
+   - Acceder al dashboard en `http://127.0.0.1:8080`.
+
+---
+
+### 13.3 Mandamientos Inquebrantables de Rigor para el Agente Receptor
+1. **Arquitectura por Capas Estricta:** No importar lógica de base de datos o HTTP dentro de `domain/`.
+2. **Cero Violaciones de Privacidad (LOPDP/GDPR):** Jamás registrar ni almacenar direcciones IP en texto claro; usar siempre el hash SHA-256 de `RateLimiter._hash_ip()`.
+3. **Cero Bots de Apuestas Automatizadas (ToS Compliance):** Mantener el software estrictamente como **Herramienta de Soporte Cuantitativo a la Decisión**. Toda apuesta debe ser ejecutada manualmente por el operador.
+4. **Protección Anti-Palpable Error:** Nunca desactivar el filtro de rechazo de cuotas con discrepancia $> 18\%$ contra Pinnacle o ROI $> 15\%$.
+
