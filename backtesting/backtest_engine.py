@@ -165,11 +165,11 @@ class BacktestEngine:
             eta = 0.07 * (r_h["uncertainty"] + r_a["uncertainty"]) / 2.0
 
             r_h["attack"] = max(0.5, round(r_h["attack"] + (eta * res_h * 0.12), 3))
-            r_h["defense"] = max(0.5, round(r_h["defense"] - (eta * res_a * 0.10), 3))
+            r_h["defense"] = max(0.5, round(r_h["defense"] + (eta * res_a * 0.10), 3))
             r_h["uncertainty"] = max(0.35, round(r_h["uncertainty"] * 0.97, 3))
 
             r_a["attack"] = max(0.5, round(r_a["attack"] + (eta * res_a * 0.12), 3))
-            r_a["defense"] = max(0.5, round(r_a["defense"] - (eta * res_h * 0.10), 3))
+            r_a["defense"] = max(0.5, round(r_a["defense"] + (eta * res_h * 0.10), 3))
             r_a["uncertainty"] = max(0.35, round(r_a["uncertainty"] * 0.97, 3))
 
         # Métricas Consolidadas

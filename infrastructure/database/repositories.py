@@ -67,6 +67,71 @@ class MatchRepository:
     """Acceso persistente a partidos históricos y liquidaciones."""
 
     @staticmethod
+    def get_by_event_id(event_id: str) -> Optional[Dict[str, Any]]:
+        """Recupera un partido liquidado por su ID."""
+        conn = DatabaseConnection.get_connection()
+        try:
+            c = conn.cursor()
+            c.execute("SELECT * FROM settled_matches WHERE event_id = ?", (event_id,))
+            row = c.fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def is_settled(event_id: str) -> bool:
+        """Determina si un evento ya fue liquidado (Idempotencia)."""
+        return MatchRepository.get_by_event_id(event_id) is not None
+
+    @staticmethod
+    def save_settlement_atomic(
+        event_id: str,
+        r_h: TeamRating,
+        r_a: TeamRating,
+        score_h: int,
+        score_a: int,
+        pred_h: float,
+        pred_x: float,
+        pred_a: float,
+        brier: float,
+        res_json: str
+    ):
+        """Persiste la liquidación y la actualización de ratings de forma estrictamente atómica (Unit of Work)."""
+        conn = DatabaseConnection.get_connection()
+        try:
+            with conn:  # Context manager transaccional de SQLite (commit / rollback automático)
+                c = conn.cursor()
+                now = time.time()
+                # 1. Actualizar equipo local
+                c.execute("""
+                INSERT OR REPLACE INTO team_ratings 
+                (team_name, league, attack, defense, uncertainty, consecutive_errors, is_quarantined, matches_played, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    r_h.team_name, r_h.league, r_h.attack, r_h.defense,
+                    r_h.uncertainty, r_h.consecutive_errors, 1 if r_h.is_quarantined else 0,
+                    r_h.matches_played, now
+                ))
+                # 2. Actualizar equipo visitante
+                c.execute("""
+                INSERT OR REPLACE INTO team_ratings 
+                (team_name, league, attack, defense, uncertainty, consecutive_errors, is_quarantined, matches_played, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    r_a.team_name, r_a.league, r_a.attack, r_a.defense,
+                    r_a.uncertainty, r_a.consecutive_errors, 1 if r_a.is_quarantined else 0,
+                    r_a.matches_played, now
+                ))
+                # 3. Guardar registro de partido liquidado
+                c.execute("""
+                INSERT OR REPLACE INTO settled_matches
+                (event_id, home_team, away_team, home_score, away_score, pred_home_prob, pred_draw_prob, pred_away_prob, brier_score, residuals_json, settled_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (event_id, r_h.team_name, r_a.team_name, score_h, score_a, pred_h, pred_x, pred_a, brier, res_json, now))
+        finally:
+            conn.close()
+
+    @staticmethod
     def save_settled(event_id: str, home: str, away: str, score_h: int, score_a: int, pred_h: float, pred_x: float, pred_a: float, brier: float, res_json: str):
         conn = DatabaseConnection.get_connection()
         try:

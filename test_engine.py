@@ -5,6 +5,7 @@ Verificación rigurosa de motores cuantitativos, filtros anti-catástrofe y apre
 
 import unittest
 import os
+import time
 from infrastructure.database import init_db, seed_default_teams, DatabaseConnection
 from domain.arbitrage import ArbitrageDomain, ArbitrageEngine
 from domain.guardrails import GuardrailsDomain, SafetyGuardrails
@@ -90,8 +91,9 @@ class TestArbitrageProNextGen(unittest.TestCase):
             "prob_away": 0.27
         }
 
+        test_event_id = f"test_settle_01_{int(time.time() * 1000)}"
         settlement = BayesianContinuousLearner.settle_match_and_learn(
-            event_id="test_settle_01",
+            event_id=test_event_id,
             home_team=home,
             away_team=away,
             home_score=3,
@@ -277,5 +279,39 @@ class TestArbitrageProNextGen(unittest.TestCase):
         self.assertEqual(source, "FALLBACK_DIXON_COLES")
         self.assertEqual(probs["prob_home"], 0.50)
 
+    def test_15_settlement_idempotency_and_defense_physics(self):
+        """Verifica la física de vulnerabilidad defensiva de Dixon-Coles y la idempotencia de liquidación."""
+        from services.learning_service import LearningService
+        from infrastructure.database.repositories import TeamRepository
+
+        team_test = "Arsenal"
+        team_rival = "Bayern Munich"
+
+        r_before = TeamRepository.get_by_name(team_test)
+        self.assertIsNotNone(r_before)
+        def_before = r_before.defense
+
+        # Caso 1: Arsenal es goleado 0-4 en casa -> Concede más de lo proyectado (res_a > 0)
+        # Su factor de vulnerabilidad defensiva DEBE AUMENTAR (+)
+        event_id = f"test_physics_ucl_{int(time.time() * 1000)}"
+        res1 = LearningService.settle_match(event_id, team_test, team_rival, 0, 4)
+        self.assertNotIn("error", res1)
+
+        r_after = TeamRepository.get_by_name(team_test)
+        self.assertGreater(r_after.defense, def_before, "La vulnerabilidad defensiva debe aumentar tras encajar 4 goles")
+
+        # Caso 2: Idempotencia estricta
+        # Llamar settle_match con el MISMO event_id no debe aplicar doble penalización
+        res2 = LearningService.settle_match(event_id, team_test, team_rival, 0, 4)
+        self.assertEqual(res2.get("status"), "ALREADY_SETTLED")
+
+        r_idempotent = TeamRepository.get_by_name(team_test)
+        self.assertEqual(r_idempotent.defense, r_after.defense, "El rating no debe mutar en llamadas duplicadas")
+
+        # Caso 3: Rechazo de marcadores negativos (Defensa en Profundidad)
+        res_bad = LearningService.settle_match("test_bad_input", team_test, team_rival, -2, 1)
+        self.assertEqual(res_bad.get("error"), "INVALID_SCORES")
+
 if __name__ == "__main__":
     unittest.main()
+
