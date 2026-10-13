@@ -1,6 +1,6 @@
 """
-ArbitragePro NextGen - Production Server
-Servidor HTTP y API REST en Python puro (cero dependencias externas) con streaming y endpoints de auditoría.
+ArbitragePro NextGen - Robust Production Server (Layered Architecture)
+Punto de entrada HTTP con arquitectura en capas, middleware de seguridad, rate limiting y cero vulnerabilidades expuestas.
 """
 
 import http.server
@@ -8,18 +8,19 @@ import socketserver
 import json
 import os
 import time
-from typing import Any
-from urllib.parse import urlparse, parse_qs
-from database import init_db, seed_default_teams, get_connection
+from urllib.parse import urlparse
+from typing import Any, Dict
+
+from database import init_db, seed_default_teams
 from market_streamer import MarketStreamer
-from engine_arbitrage import ArbitrageEngine
-from guardrails import SafetyGuardrails
-from ml_engine import DixonColesEngine, BayesianContinuousLearner
-from backtesting.backtest_engine import BacktestEngine
 from alerts.telegram_bot import AlertDispatcher
 from config import PORT, HOST, INITIAL_BANKROLL, FRACTIONAL_KELLY
 
-# Inicializar Base de Datos y Streaming
+# Importación de la Capa de Presentación y Seguridad
+from presentation.security import SecurityGuard, RateLimiter, MAX_PAYLOAD_BYTES
+from presentation.controllers import MarketController, CalibrationController, BacktestController
+
+# 1. Inicialización de Capas de Infraestructura
 init_db()
 seed_default_teams()
 streamer = MarketStreamer()
@@ -27,203 +28,169 @@ streamer.start_streaming()
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
-class ArbitrageProHandler(http.server.SimpleHTTPRequestHandler):
-    """Manejador HTTP para la API REST y frontend de ArbitragePro."""
+class RobustArbitrageProHandler(http.server.SimpleHTTPRequestHandler):
+    """Manejador HTTP blindado: headers seguros, anti-traversal, rate limiting y sanitización."""
+
+    def _get_client_ip(self) -> str:
+        """Obtiene la IP del cliente para rate limiting."""
+        client_address = self.client_address
+        return client_address[0] if client_address else "127.0.0.1"
+
+    def _apply_security_headers(self):
+        """Aplica headers de seguridad institucionales (OWASP compliant)."""
+        for header, value in SecurityGuard.SECURITY_HEADERS.items():
+            self.send_header(header, value)
 
     def _send_json(self, data: Any, status: int = 200):
+        """Envía respuesta JSON con encabezados de seguridad completos."""
         body = json.dumps(data, indent=2).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._apply_security_headers()
         self.end_headers()
         self.wfile.write(body)
 
-    def _serve_file(self, filepath: str, content_type: str):
-        if not os.path.exists(filepath):
-            self.send_error(404, "File not found")
+    def _send_error_json(self, status: int, message: str):
+        """Respuesta de error sanitizada (sin fugas de traza o rutas internas)."""
+        self._send_json({"error": message, "status_code": status}, status=status)
+
+    def _serve_static(self, relative_path: str, content_type: str):
+        """Sirve archivos estáticos con validación anti-Path Traversal estricta."""
+        is_safe, safe_full_path = SecurityGuard.validate_safe_path(relative_path, STATIC_DIR)
+        if not is_safe or not safe_full_path:
+            self._send_error_json(404, "Recurso no encontrado.")
             return
-        with open(filepath, "rb") as f:
-            content = f.read()
-        self.send_response(200)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(content)))
-        self.end_headers()
-        self.wfile.write(content)
+
+        try:
+            with open(safe_full_path, "rb") as f:
+                content = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(content)))
+            self._apply_security_headers()
+            self.end_headers()
+            self.wfile.write(content)
+        except Exception:
+            self._send_error_json(500, "Error interno al leer recurso estático.")
 
     def do_GET(self):
+        # 1. Protección de Rate Limiting por IP
+        client_ip = self._get_client_ip()
+        if not RateLimiter.is_allowed(client_ip):
+            self._send_error_json(429, "Límite de solicitudes excedido. Intente nuevamente en 60 segundos.")
+            return
+
         parsed = urlparse(self.path)
         path = parsed.path
 
-        # 1. Rutas Estáticas
-        if path == "/" or path == "/index.html":
-            self._serve_file(os.path.join(STATIC_DIR, "index.html"), "text/html; charset=utf-8")
-            return
-        elif path == "/style.css":
-            self._serve_file(os.path.join(STATIC_DIR, "style.css"), "text/css; charset=utf-8")
-            return
-        elif path == "/app.js":
-            self._serve_file(os.path.join(STATIC_DIR, "app.js"), "application/javascript; charset=utf-8")
-            return
+        try:
+            # 2. Enrutamiento Estático
+            if path == "/" or path == "/index.html":
+                self._serve_static("index.html", "text/html; charset=utf-8")
+                return
+            elif path == "/style.css":
+                self._serve_static("style.css", "text/css; charset=utf-8")
+                return
+            elif path == "/app.js":
+                self._serve_static("app.js", "application/javascript; charset=utf-8")
+                return
 
-        # 2. Endpoints de la API REST
-        if path == "/api/status":
-            metrics = BayesianContinuousLearner.get_system_calibration_metrics()
-            self._send_json({
-                "status": "ONLINE",
-                "engine": "ArbitragePro NextGen Quantitative & ML",
-                "streaming_active": streamer.running,
-                "initial_bankroll": INITIAL_BANKROLL,
-                "kelly_fraction": FRACTIONAL_KELLY,
-                "calibration": metrics,
-                "timestamp": time.time()
-            })
-
-        elif path == "/api/live-events":
+            # 3. Enrutamiento de API REST (Delega en Controladores)
             events = streamer.get_live_events()
-            self._send_json({"events": events, "count": len(events)})
 
-        elif path == "/api/surebets":
-            events = streamer.get_live_events()
-            approved_surebets = []
-            rejected_alerts = []
+            if path == "/api/status":
+                self._send_json({
+                    "status": "ONLINE",
+                    "engine": "ArbitragePro NextGen Layered Architecture",
+                    "streaming_active": streamer.running,
+                    "initial_bankroll": INITIAL_BANKROLL,
+                    "kelly_fraction": FRACTIONAL_KELLY,
+                    "timestamp": time.time()
+                })
 
-            for ev in events:
-                raw_odds = ev.get("odds", {}).get("1X2", {})
-                cand = ArbitrageEngine.find_best_arbitrage(ev)
-                if cand:
-                    is_safe, msg, risk_score = SafetyGuardrails.validate_surebet(cand, raw_odds)
-                    cand["safety_status"] = "APPROVED" if is_safe else "REJECTED"
-                    cand["audit_message"] = msg
-                    cand["risk_score"] = risk_score
-                    if is_safe:
-                        approved_surebets.append(cand)
-                        # Despachar alerta si el ROI es mayor al 3%
-                        if cand.get("roi_percent", 0) >= 3.0:
-                            AlertDispatcher.dispatch_surebet_alert_async(cand)
-                    else:
-                        rejected_alerts.append(cand)
+            elif path == "/api/live-events":
+                res = MarketController.get_live_events(events)
+                self._send_json(res)
 
-            self._send_json({
-                "approved_surebets": approved_surebets,
-                "rejected_alerts": rejected_alerts,
-                "total_detected": len(approved_surebets) + len(rejected_alerts)
-            })
+            elif path == "/api/surebets":
+                res = MarketController.get_surebets(events)
+                # Alerta asíncrona si hay Surebets con ROI >= 3%
+                for arb in res.get("approved_surebets", []):
+                    if arb.get("roi_percent", 0) >= 3.0:
+                        AlertDispatcher.dispatch_surebet_alert_async(arb)
+                self._send_json(res)
 
-        elif path == "/api/value-bets":
-            events = streamer.get_live_events()
-            value_signals = []
+            elif path == "/api/value-bets":
+                res = MarketController.get_value_bets(events)
+                self._send_json(res)
 
-            for ev in events:
-                home_team = ev.get("home_team")
-                away_team = ev.get("away_team")
+            elif path == "/api/calibration":
+                res = CalibrationController.get_calibration_summary()
+                self._send_json(res)
 
-                # Obtener ratings actualizados
-                r_h = BayesianContinuousLearner.get_team_rating(home_team)
-                r_a = BayesianContinuousLearner.get_team_rating(away_team)
+            elif path == "/api/backtest/run":
+                res = BacktestController.run_backtest()
+                self._send_json(res)
 
-                # Si alguno de los equipos está en cuarentena de seguridad, descartar señales predictivas
-                if r_h.get("is_quarantined") or r_a.get("is_quarantined"):
-                    continue
+            else:
+                self._send_error_json(404, "Endpoint no encontrado.")
 
-                probs = DixonColesEngine.compute_match_probabilities(
-                    r_h["attack"], r_h["defense"], r_a["attack"], r_a["defense"]
-                )
-
-                # Comparar con cuotas de mercado de Pinnacle y Ecuabet
-                market_1x2 = ev.get("odds", {}).get("1X2", {})
-                sel_map = [("1", "prob_home", "fair_odd_home", home_team),
-                           ("X", "prob_draw", "fair_odd_draw", "Empate"),
-                           ("2", "prob_away", "fair_odd_away", away_team)]
-
-                for sel, p_key, f_key, sel_name in sel_map:
-                    model_prob = probs[p_key]
-                    fair_odd = probs[f_key]
-
-                    # Buscar la mejor cuota disponible en el mercado para esta selección
-                    best_odd = 0.0
-                    best_bm = None
-                    for bm, odds_d in market_1x2.items():
-                        val = odds_d.get(sel, 0.0)
-                        if val > best_odd:
-                            best_odd = val
-                            best_bm = bm
-
-                    if best_odd > fair_odd:
-                        edge = round(((model_prob * best_odd) - 1.0) * 100.0, 2)
-                        # Solo emitir si el Edge supera el 3.0%
-                        if edge >= 3.0:
-                            # Kelly Fraccional
-                            b = best_odd - 1.0
-                            p = model_prob
-                            q = 1.0 - p
-                            raw_kelly = (p * b - q) / b if b > 0 else 0
-                            rec_stake = max(5.0, round(INITIAL_BANKROLL * raw_kelly * FRACTIONAL_KELLY, 2))
-
-                            value_signals.append({
-                                "event_id": ev.get("event_id"),
-                                "match": f"{home_team} vs {away_team}",
-                                "league": ev.get("league"),
-                                "minute": ev.get("minute"),
-                                "score": f"{ev.get('score', {}).get('home')}-{ev.get('score', {}).get('away')}",
-                                "selection": f"{sel} ({sel_name})",
-                                "bookmaker": best_bm,
-                                "market_odd": best_odd,
-                                "fair_model_odd": fair_odd,
-                                "model_probability": round(model_prob * 100, 1),
-                                "edge_percent": edge,
-                                "recommended_stake_usd": rec_stake,
-                                "brier_score_confidence": round(1.0 - r_h["uncertainty"]*0.3, 2)
-                            })
-
-            self._send_json({"value_signals": value_signals, "count": len(value_signals)})
-
-        elif path == "/api/calibration":
-            metrics = BayesianContinuousLearner.get_system_calibration_metrics()
-            conn = get_connection()
-            c = conn.cursor()
-            c.execute("SELECT * FROM settled_matches ORDER BY settled_at DESC LIMIT 10")
-            recent_settled = [dict(row) for row in c.fetchall()]
-
-            c.execute("SELECT team_name, attack, defense, uncertainty, consecutive_errors, is_quarantined FROM team_ratings")
-            teams = [dict(row) for row in c.fetchall()]
-            conn.close()
-
-            self._send_json({
-                "metrics": metrics,
-                "recent_settled_matches": recent_settled,
-                "teams_state": teams
-            })
-
-        elif path == "/api/backtest/run":
-            engine = BacktestEngine(initial_bankroll=INITIAL_BANKROLL)
-            results = engine.run_backtest()
-            self._send_json(results)
-        else:
-            self.send_error(404, "Endpoint not found")
+        except Exception as e:
+            # Blindaje contra fuga de excepciones internas
+            self._send_error_json(500, "Error interno del servidor.")
 
     def do_POST(self):
+        # 1. Rate Limiting
+        client_ip = self._get_client_ip()
+        if not RateLimiter.is_allowed(client_ip):
+            self._send_error_json(429, "Límite de solicitudes excedido.")
+            return
+
         parsed = urlparse(self.path)
         path = parsed.path
 
-        if path == "/api/settle":
-            content_length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(content_length).decode("utf-8")
-            data = json.loads(body) if body else {}
+        try:
+            # 2. Protección Anti-DoS por Tamaño de Payload
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+            except (ValueError, TypeError):
+                self._send_error_json(400, "Encabezado Content-Length inválido.")
+                return
 
-            event_id = data.get("event_id", "match_ucl_01")
-            home_score = int(data.get("home_score", 2))
-            away_score = int(data.get("away_score", 1))
+            if content_length > MAX_PAYLOAD_BYTES:
+                self._send_error_json(413, f"El tamaño de la carga ({content_length} bytes) excede el máximo permitido ({MAX_PAYLOAD_BYTES} bytes).")
+                return
 
-            result = streamer.settle_event_manually(event_id, home_score, away_score)
-            self._send_json({"settlement_result": result})
-        else:
-            self.send_error(404, "Endpoint not found")
+            body_bytes = self.rfile.read(content_length) if content_length > 0 else b"{}"
+            try:
+                raw_json = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
+            except json.JSONDecodeError:
+                self._send_error_json(400, "Cuerpo de solicitud JSON mal formado.")
+                return
+
+            # 3. Enrutamiento POST Sanitizado
+            if path == "/api/settle":
+                is_valid, msg, clean_data = SecurityGuard.sanitize_settle_input(raw_json)
+                if not is_valid:
+                    self._send_error_json(400, msg)
+                    return
+
+                res = CalibrationController.settle_match(clean_data, streamer.get_live_events())
+                self._send_json(res)
+            else:
+                self._send_error_json(404, "Endpoint POST no encontrado.")
+
+        except Exception:
+            self._send_error_json(500, "Error interno al procesar solicitud POST.")
+
+# Alias para compatibilidad hacia atrás
+ArbitrageProHandler = RobustArbitrageProHandler
 
 def run_server():
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer((HOST, PORT), ArbitrageProHandler) as httpd:
-        print(f"[ARBITRAGEPRO ENGINE] Servidor activo y escuchando en http://{HOST}:{PORT}")
+    with socketserver.TCPServer((HOST, PORT), RobustArbitrageProHandler) as httpd:
+        print(f"[ARBITRAGEPRO ENGINE] Servidor robusto y blindado activo en http://{HOST}:{PORT}")
         httpd.serve_forever()
 
 if __name__ == "__main__":

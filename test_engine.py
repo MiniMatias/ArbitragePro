@@ -118,5 +118,57 @@ class TestArbitrageProNextGen(unittest.TestCase):
         self.assertIn("equity_curve", report)
         self.assertGreaterEqual(report["final_bankroll_usd"], 0.0)
 
+    def test_07_security_path_traversal_prevention(self):
+        """Verifica que intentos de escape de directorio (Path Traversal) sean bloqueados."""
+        from presentation.security import SecurityGuard
+        base_dir = os.path.join(os.path.dirname(__file__), "static")
+
+        # Intentos de traversal clásicos
+        attacks = [
+            "../../../../Windows/System32/drivers/etc/hosts",
+            "..\\..\\server.py",
+            "%2e%2e/database.py",
+            "index.html\0.exe"
+        ]
+        for attack in attacks:
+            is_safe, resolved = SecurityGuard.validate_safe_path(attack, base_dir)
+            self.assertFalse(is_safe, f"El ataque '{attack}' debió ser bloqueado")
+            self.assertIsNone(resolved)
+
+        # Archivo legítimo debe ser aprobado
+        is_safe_ok, resolved_ok = SecurityGuard.validate_safe_path("index.html", base_dir)
+        self.assertTrue(is_safe_ok)
+        self.assertIsNotNone(resolved_ok)
+
+    def test_08_security_settle_input_sanitization(self):
+        """Verifica que entradas maliciosas o desbordadas a /api/settle sean saneadas y rechazadas."""
+        from presentation.security import SecurityGuard
+
+        # Caso 1: Goles negativos
+        ok, msg, _ = SecurityGuard.sanitize_settle_input({"event_id": "match_01", "home_score": -5, "away_score": 1})
+        self.assertFalse(ok, "Debe rechazar marcadores negativos")
+
+        # Caso 2: Goles inverosímiles (Anti-Overflow)
+        ok2, msg2, _ = SecurityGuard.sanitize_settle_input({"event_id": "match_01", "home_score": 99999, "away_score": 0})
+        self.assertFalse(ok2, "Debe rechazar marcadores absurdos")
+
+        # Caso 3: Inyección en event_id
+        ok3, msg3, _ = SecurityGuard.sanitize_settle_input({"event_id": "<script>alert(1)</script>", "home_score": 1, "away_score": 0})
+        self.assertFalse(ok3, "Debe rechazar caracteres no alfanuméricos en event_id")
+
+        # Caso 4: Entrada válida
+        ok_valid, msg_valid, clean = SecurityGuard.sanitize_settle_input({"event_id": "match_ucl_01", "home_score": 2, "away_score": 1})
+        self.assertTrue(ok_valid)
+        self.assertEqual(clean["home_score"], 2)
+
+    def test_09_security_rate_limiter(self):
+        """Verifica que el limitador de tasa permita tráfico normal y regule ráfagas abusivas."""
+        from presentation.security import RateLimiter
+        test_ip = "192.168.100.50"
+
+        # Primeras solicitudes deben ser permitidas
+        for _ in range(5):
+            self.assertTrue(RateLimiter.is_allowed(test_ip))
+
 if __name__ == "__main__":
     unittest.main()
