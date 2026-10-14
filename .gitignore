@@ -19,3 +19,4 @@ Desktop.ini
 .vscode/
 .idea/
 catboost_info/
+.env
